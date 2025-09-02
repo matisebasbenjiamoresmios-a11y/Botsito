@@ -7,7 +7,7 @@ CIUDAD_POR_DEFECTO = "Pilar"
 import os
 API_KEY_OPENAI = os.environ.get("OPENROUTER_API_KEY")
 API_URL_OPENAI = "https://openrouter.ai/api/v1/chat/completions"
-MODEL_OPENAI = "deepseek/deepseek-r1-0528:free"
+MODEL_OPENAI = "mistralai/mistral-7b-instruct:free"
 
 mensajes = [{
     "role": "system",
@@ -76,5 +76,4 @@ def responder(pregunta: str, forzar_ia=False) -> str:
     except Exception as e:
         return f"Error al conectar con OpenAI / OpenRouter: {e}"
 
-def responder_pregunta(pregunta, forzar_ia=False):
-    return responder(pregunta, forzar_ia=forzar_ia)
+
