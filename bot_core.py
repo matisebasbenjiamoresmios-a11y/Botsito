@@ -4,7 +4,8 @@ import re
 
 API_KEY_OPENWEATHER = "16ceddd5179d3a1b145b79e7785b1f8f"
 CIUDAD_POR_DEFECTO = "Pilar"
-API_KEY_OPENAI = "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"
+import os
+API_KEY_OPENAI = os.environ.get("OPENROUTER_API_KEY")
 API_URL_OPENAI = "https://openrouter.ai/api/v1/chat/completions"
 MODEL_OPENAI = "deepseek/deepseek-r1-0528:free"
 
