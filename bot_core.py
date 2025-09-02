@@ -76,4 +76,6 @@ def responder(pregunta: str, forzar_ia=False) -> str:
     except Exception as e:
         return f"Error al conectar con OpenAI / OpenRouter: {e}"
 
+def responder_pregunta(pregunta, forzar_ia=False):
+    return responder(pregunta, forzar_ia=forzar_ia)
 
