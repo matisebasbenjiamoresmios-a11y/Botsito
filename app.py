@@ -10,6 +10,12 @@ app = Flask(__name__)
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 MODEL_OPENAI = "deepseek/deepseek-r1-0528:free"
 
+@app.route("/check-key")
+def check_key():
+    import os
+    key = os.environ.get("OPENROUTER_API_KEY")
+    return f"Clave encontrada: {key[:10]}..." if key else "❌ NO encontrada"
+
 @app.route("/")
 def index():
     return send_file("index.html")
