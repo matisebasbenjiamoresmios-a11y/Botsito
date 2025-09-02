@@ -8,7 +8,7 @@ app = Flask(__name__)
 
 # 🔑 Clave de OpenRouter
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-MODEL_OPENAI = "deepseek/deepseek-r1-0528:free"
+MODEL_OPENAI = "mistralai/mistral-7b-instruct:free"
 
 @app.route("/check-key")
 def check_key():
