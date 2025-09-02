@@ -23,7 +23,7 @@ def index():
 @app.route("/ask", methods=["POST"])
 def ask():
     user_msg = request.data.decode("utf-8")
-    #este import se hace adentro para evitar errores circulares
+    print("📩 Recibido:", user_msg) #NUEVO
     from bot_core import responder_pregunta
     bot_reply = responder_pregunta(user_msg)
     return jsonify({"response": bot_reply})
