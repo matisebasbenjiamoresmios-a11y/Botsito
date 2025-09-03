@@ -10,6 +10,16 @@ app = Flask(__name__)
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 MODEL_OPENAI = "mistralai/mistral-7b-instruct:free"
 
+
+@app.route("/robots.txt")
+def robots_txt():
+    return send_file("robots.txt")
+
+
+@app.route("/sitemap.xml")
+def sitemap_map():
+    return send_file("sitemap.xml")
+
 @app.route("/")
 def index():
     return send_file("index.html")
