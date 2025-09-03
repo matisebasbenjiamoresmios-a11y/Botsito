@@ -1,60 +1,89 @@
-from flask import Flask, request, jsonify, send_from_directory
-from flask_cors import CORS
-from werkzeug.utils import secure_filename
+from flask import Flask, request, jsonify, send_file
+import requests
 import os
+import PyPDF2
+import docx
 
 app = Flask(__name__)
-CORS(app)
 
-UPLOAD_FOLDER = "uploads"
-ALLOWED_EXTENSIONS = {"txt", "pdf", "docx"}
+# Clave de OpenRouter
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+MODEL_OPENAI = "mistralai/mistral-7b-instruct:free"
 
-app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+@app.route("/")
+def index():
+    return send_file("index.html")
 
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
-@app.route("/ask", methods=["POST"])
+@app.route("/preguntar", methods=["POST"])
 def ask():
     data = request.get_json()
-    user_input = data.get("message", "")
-
-    # Simulamos respuesta del bot
-    respuesta = f"Hola! Soy un asistente digital diseñado para responderle a tus preguntas y ayudarte en lo que pueda. ¡Tengo la habilidad de resumir textos largos en español, así como de responder preguntas prácticas con claridad! Me complace atenderte. ¡Si tienes alguna pregunta, no dude en preguntarme!"
-    return jsonify({"response": respuesta})
+    user_msg = data.get("pregunta", "")
+    from bot_core import responder_pregunta
+    bot_reply = responder_pregunta(user_msg)
+    return jsonify({"respuesta": bot_reply})
 
 @app.route("/upload", methods=["POST"])
-def upload_file():
-    if "file" not in request.files:
-        return jsonify({"message": "No se envió ningún archivo"}), 400
+def upload():
+    if 'archivo' not in request.files:
+        return jsonify({"resumen": ["⚠️ No se envió ningún archivo."]})
 
-    file = request.files["file"]
+    archivo = request.files['archivo']
+    nombre = archivo.filename
+    extension = nombre.split('.')[-1].lower()
 
-    if file.filename == "":
-        return jsonify({"message": "Nombre de archivo vacío"}), 400
+    try:
+        # Leer contenido según tipo
+        if extension == "pdf":
+            reader = PyPDF2.PdfReader(archivo)
+            texto = " ".join(page.extract_text() for page in reader.pages if page.extract_text())
+        elif extension == "txt":
+            texto = archivo.read().decode("utf-8")
+        elif extension == "docx":
+            doc = docx.Document(archivo)
+            texto = " ".join(p.text for p in doc.paragraphs)
+        else:
+            return jsonify({"resumen": ["❌ Formato no soportado. Usa PDF, DOCX o TXT."]})
 
-    if file and allowed_file(file.filename):
-        filename = secure_filename(file.filename)
-        filepath = os.path.join(app.config["UPLOAD_FOLDER"], filename)
-        file.save(filepath)
+        # Dividir en partes de 1500 caracteres
+        partes = [texto[i:i + 1500] for i in range(0, len(texto), 1500)]
 
-        # Simular un resumen como respuesta
-        resumen = f"✅ Archivo '{filename}' recibido correctamente.\n(Resumen simulado aquí...)"
-        return jsonify({"message": resumen})
+        partes_resumen = []
+        for idx, parte in enumerate(partes, 1):
+            resumen = resumir_con_modelo(parte)
+            partes_resumen.append(resumen)
 
-    return jsonify({"message": "Tipo de archivo no permitido"}), 400
+        return jsonify({"resumen": partes_resumen})
 
-@app.route("/reset", methods=["POST"])
-def reset():
-    return jsonify({"message": "Contexto reiniciado"})
+    except Exception as e:
+        return jsonify({"resumen": [f"⚠️ Error al procesar el archivo: {str(e)}"]})
 
-@app.route("/", defaults={"path": ""})
-@app.route("/<path:path>")
-def serve_frontend(path):
-    if path == "" or path == "index.html":
-        return send_from_directory(".", "index.html")
-    return send_from_directory(".", path)
+def resumir_con_modelo(texto):
+    try:
+        response = requests.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                "Content-Type": "application/json",
+                "HTTP-Referer": "http://localhost",
+                "X-Title": "BotsitoIA"
+            },
+            json={
+                "model": MODEL_OPENAI,
+                "messages": [
+                    {"role": "user", "content": f"Resume este texto en español:\n{texto}"}
+                ]
+            },
+            timeout=60
+        )
+
+        if response.status_code != 200:
+            return f"⚠️ Error {response.status_code} - {response.text[:100]}"
+
+        data = response.json()
+        return data['choices'][0]['message']['content']
+
+    except Exception as e:
+        return f"⚠️ Error al resumir: {str(e)}"
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True)
