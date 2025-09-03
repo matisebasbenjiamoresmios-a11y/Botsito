@@ -36,32 +36,44 @@ def upload():
     ext = filename.split('.')[-1].lower()
 
     try:
+        print("📥 Archivo recibido:", filename)
+        print("📂 Tipo de archivo:", ext)
+
         # 1. Leer archivo
         if ext == "pdf":
+            print("🔍 Procesando como PDF")
             reader = PyPDF2.PdfReader(file)
             text = " ".join(page.extract_text() for page in reader.pages if page.extract_text())
         elif ext == "txt":
+            print("🔍 Procesando como TXT")
             text = file.read().decode("utf-8")
         elif ext == "docx":
+            print("🔍 Procesando como DOCX")
             doc = docx.Document(file)
             text = " ".join(p.text for p in doc.paragraphs)
         else:
+            print("❌ Formato no soportado:", ext)
             return jsonify({"message": "❌ Formato no soportado."})
 
-        # 2. Dividir en partes para no saturar el modelo
+        print("📄 Longitud de texto extraído:", len(text))
+
+        # 2. Dividir en partes
         part_size = 2000
         parts = [text[i:i + part_size] for i in range(0, len(text), part_size)]
+        print("📚 Partes a resumir:", len(parts))
 
         resumen_total = ""
         for idx, part in enumerate(parts, 1):
+            print(f"📝 Resumiendo parte {idx}/{len(parts)}...")
             resumen = resumir_con_modelo(part)
             resumen_total += f"\n\n📄 Resumen parte {idx}/{len(parts)}:\n{resumen}"
 
+        print("✅ Resumen completo generado.")
         return jsonify({"message": resumen_total})
     
     except Exception as e:
-        print("❌ Error en /upload:", str(e))  # 👈 Nuevo print para debug
-        return jsonify({"message": f"⚠️ Error al procesar archivo: {str(e)}"}), 500  # 👈 Devuelve código HTTP 500
+        print("❌ Error inesperado en /upload:", str(e))
+        return jsonify({"message": f"⚠️ Error al procesar archivo: {str(e)}"}), 500
 
 def resumir_con_modelo(texto_parte):
     """Llama a OpenRouter para resumir un texto en español"""
