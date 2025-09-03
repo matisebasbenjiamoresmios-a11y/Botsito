@@ -69,6 +69,8 @@
             <div class="row">
               <input type="text" id="pregunta" placeholder="Escribe tu pregunta…" />
               <button class="primary" onclick="enviarPregunta()">Preguntar</button>
+              <!-- Nuevo botón limpiar -->
+              <button type="button" onclick="limpiarChat()">🧼 Limpiar pantalla</button>
             </div>
             <div class="row">
               <input type="file" id="archivo" style="display:none" onchange="mostrarNombreArchivo()" />
@@ -156,11 +158,17 @@
         });
     }
 
-    //Enter para enviar
+    // 🚀 Nuevo: limpiar pantalla
+    function limpiarChat() {
+      document.getElementById('chat').innerHTML = '';
+      document.getElementById('resumen-container').innerHTML = '';
+    }
+
+    // 🚀 Enter para enviar
     const inputPregunta = document.getElementById('pregunta');
     inputPregunta.addEventListener('keydown', function (e) {
       if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault(); // evitar salto de línea
+        e.preventDefault();
         enviarPregunta();
       }
     });
