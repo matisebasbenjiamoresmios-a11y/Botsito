@@ -30,12 +30,14 @@ def reset():
 def upload():
     if 'file' not in request.files:
         return jsonify({"message": "⚠️ No se envió ningún archivo."})
-
     file = request.files['file']
     filename = file.filename
     ext = filename.split('.')[-1].lower()
 
     try:
+        print("📥 Archivo recibido:", filename)
+        print("📂 Tipo de archivo:", ext)
+
         # 1. Leer archivo
         if ext == "pdf":
             reader = PyPDF2.PdfReader(file)
@@ -58,13 +60,11 @@ def upload():
             resumen_total += f"\n\n📄 Resumen parte {idx}/{len(parts)}:\n{resumen}"
 
         return jsonify({"message": resumen_total})
-    
     except Exception as e:
-        print("❌ Error en /upload:", str(e))  # 👈 Nuevo print para debug
-        return jsonify({"message": f"⚠️ Error al procesar archivo: {str(e)}"}), 500  # 👈 Devuelve código HTTP 500
+        print("❌ Error en /upload:", str(e))
+        return jsonify({"message": f"⚠️ Error al procesar archivo: {str(e)}"}), 500
 
 def resumir_con_modelo(texto_parte):
-    """Llama a OpenRouter para resumir un texto en español"""
     try:
         response = requests.post(
             "https://openrouter.ai/api/v1/chat/completions",
