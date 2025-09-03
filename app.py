@@ -29,7 +29,7 @@ def reset():
 @app.route("/upload", methods=["POST"])
 def upload():
     if 'file' not in request.files:
-        return jsonify({"message": "⚠️ No se envió ningún archivo."})
+        return jsonify(message="⚠️ No se envió ningún archivo.")
     file = request.files['file']
     filename = file.filename
     ext = filename.split('.')[-1].lower()
@@ -45,7 +45,7 @@ def upload():
             doc = docx.Document(file)
             text = " ".join(p.text for p in doc.paragraphs)
         else:
-            return jsonify({"message": "❌ Formato no soportado."})
+            return jsonify(message="❌ Formato no soportado.")
 
         # 2. Dividir en partes para no saturar el modelo
         part_size = 2000
@@ -56,9 +56,9 @@ def upload():
             resumen = resumir_con_modelo(part)
             resumen_total += f"\n\n📄 Resumen parte {idx}/{len(parts)}:\n{resumen}"
 
-        return jsonify({"message": resumen_total})
+        return jsonify(message=resumen_total)
     except Exception as e:
-        return jsonify({"message": f"⚠️ Error al procesar archivo: {str(e)}"})
+        return jsonify(message=f"⚠️ Error al procesar archivo: {str(e)}")
 
 def resumir_con_modelo(texto_parte):
     """Llama a OpenRouter para resumir un texto en español"""
