@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify, send_file, make_response
 import requests
 import os
 import PyPDF2
@@ -9,12 +9,19 @@ app = Flask(__name__)
 # Clave de OpenRouter
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 MODEL_OPENAI = "mistralai/mistral-7b-instruct:free"
+
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 @app.route("/")
 def index():
-    return send_file(os.path.join(BASE_DIR, "index.html"))
+    resp = make_response(send_file(os.path.join(BASE_DIR, "index.html")))
+    # Desactivar caché para el HTML (importante mientras verificás SEO)
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
+    return resp
 
 @app.route("/robots.txt")
 def robots_txt():
