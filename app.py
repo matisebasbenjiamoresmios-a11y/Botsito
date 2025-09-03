@@ -10,12 +10,6 @@ app = Flask(__name__)
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 MODEL_OPENAI = "mistralai/mistral-7b-instruct:free"
 
-@app.route("/check-key")
-def check_key():
-    import os
-    key = os.environ.get("OPENROUTER_API_KEY")
-    return f"Clave encontrada: {key[:10]}..." if key else "❌ NO encontrada"
-
 @app.route("/")
 def index():
     return send_file("index.html")
@@ -23,7 +17,7 @@ def index():
 @app.route("/ask", methods=["POST"])
 def ask():
     user_msg = request.data.decode("utf-8")
-    print("📩 Recibido:", user_msg) #NUEVO
+    print("📩 Recibido:", user_msg)
     from bot_core import responder_pregunta
     bot_reply = responder_pregunta(user_msg)
     return jsonify({"response": bot_reply})
@@ -85,9 +79,16 @@ def resumir_con_modelo(texto_parte):
             },
             timeout=60
         )
-        response.raise_for_status()
-        data = response.json()
-        return data['choices'][0]['message']['content']
+
+        if response.status_code != 200:
+            return f"⚠️ Error de OpenRouter: {response.status_code} - {response.text[:100]}"
+
+        try:
+            data = response.json()
+            return data['choices'][0]['message']['content']
+        except Exception as e:
+            return f"⚠️ Respuesta inválida de OpenRouter: {str(e)}"
+
     except Exception as e:
         return f"⚠️ Error al resumir parte: {str(e)}"
 
