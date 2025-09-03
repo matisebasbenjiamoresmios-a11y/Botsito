@@ -1,120 +1,110 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <title>Botsito IA</title>
-    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
-    <script id="MathJax-script" async
-            src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
-    <style>
-        html, body { height: 100%; margin: 0; }
-        body {
-            display: flex; 
-            justify-content: center; align-items: center;
-            background-color: #121212; font-family: Arial, sans-serif;
-        }
-        #container {
-            width: 100%; max-width: 600px;
-            border: 2px solid #ccc; border-radius: 15px;
-            padding: 20px; display: flex; flex-direction: column;
-        }
-        h1 { color: #00cfff; margin: 0 0 15px; text-align: center; }
-        #chat-box {
-            background-color: #1e1e1e; border-radius: 10px;
-            padding: 10px; overflow-y: auto; height: 350px;
-            margin-bottom: 10px;
-        }
-        .user-message {
-            background-color: #009688; color: #fff;
-            padding: 8px 12px; border-radius: 10px;
-            margin: 5px 0; max-width: 90%; margin-left: auto;
-        }
-        .bot-message {
-            background-color: #333; color: #f0f0f0;
-            padding: 8px 12px; border-radius: 10px;
-            margin: 5px 0; max-width: 90%; margin-right: auto;
-        }
-        #input-area { display: flex; margin-bottom: 10px; }
-        #user-input {
-            flex: 1; padding: 10px; border-radius: 5px;
-            border: none; outline: none;
-            background-color: #1e1e1e; color: #f0f0f0;
-        }
-        button, label {
-            flex: 1; padding: 10px; border-radius: 5px;
-            border: none; background-color: #00cfff; color: #000;
-            cursor: pointer; margin: 5px; text-align: center;
-        }
-        button:hover, label:hover { background-color: #00aacc; }
-        input[type="file"] { display: none; }
-        .button-row { display: flex; gap: 10px; flex-wrap: wrap; }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Botsito IA</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      background-color: #111;
+      color: white;
+      text-align: center;
+    }
+    #chat {
+      max-width: 700px;
+      margin: auto;
+      padding: 20px;
+      background: #222;
+      border-radius: 10px;
+    }
+    .user, .bot {
+      margin: 10px;
+      padding: 10px;
+      border-radius: 8px;
+    }
+    .user {
+      background-color: #009688;
+      text-align: right;
+    }
+    .bot {
+      background-color: #444;
+      text-align: left;
+    }
+    input, button {
+      margin: 5px;
+      padding: 10px;
+      font-size: 16px;
+    }
+  </style>
 </head>
 <body>
-<div id="container">
-    <h1>🤖 Botsito IA</h1>
-    <div id="chat-box"></div>
-    <div id="input-area">
-        <input type="text" id="user-input" placeholder="¿Qué te gustaría saber?">
-    </div>
-    <div class="button-row">
-        <button onclick="sendMessage()">🚀 Enviar</button>
-        <button onclick="clearChat()">✏ Limpiar chat</button>
-    </div>
-    <div class="button-row">
-        <label for="file-input">📁 Seleccionar archivo</label>
-        <button onclick="uploadFile()">↑ Subir archivo</button>
-    </div>
-    <input type="file" id="file-input">
-</div>
+  <h1>🤖 Botsito IA</h1>
+  <div id="chat"></div>
+  <input type="text" id="userInput" placeholder="¿Qué te gustaría saber?" />
+  <button onclick="sendMessage()">💌 Enviar</button>
+  <button onclick="clearChat()">🧹 Limpiar chat</button>
+  <br/>
+  <input type="file" id="fileInput"/>
+  <button onclick="uploadFile()">↑ Subir archivo</button>
 
-<script>
-window.onload = () => document.getElementById('user-input').focus();
+  <script>
+    const chatDiv = document.getElementById("chat");
 
-document.getElementById('user-input').addEventListener('keypress', e => {
-    if (e.key === 'Enter') sendMessage();
-});
-
-function sendMessage() {
-    const input = document.getElementById('user-input');
-    const message = input.value.trim();
-    if (!message) return;
-    appendMessage('Tú', message, 'user-message');
-    input.value = '';
-    fetch('/ask', { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: message })
-        .then(res => res.json())
-        .then(data => { appendMessage('Botsito 🤖', data.response, 'bot-message'); MathJax.typesetPromise(); })
-        .catch(err => appendMessage('Botsito 🤖', `⚠️ Error: ${err}`, 'bot-message'));
-}
-
-function appendMessage(sender, text, cssClass) {
-    const chatBox = document.getElementById('chat-box');
-    const div = document.createElement('div');
-    div.className = cssClass;
-    div.innerHTML = `<strong>${sender}:</strong> ${text}`;
-    chatBox.appendChild(div);
-    chatBox.scrollTop = chatBox.scrollHeight;
-}
-
-function clearChat() {
-    document.getElementById('chat-box').innerHTML = '';
-    fetch('/reset', { method: 'POST' });
-}
-
-function uploadFile() {
-    const fileInput = document.getElementById('file-input');
-    const file = fileInput.files[0];
-    if (!file) {
-        appendMessage('Botsito 🤖', '⚠️ No seleccionaste ningún archivo.', 'bot-message');
-        return;
+    function addMessage(text, sender = "bot") {
+      const msg = document.createElement("div");
+      msg.className = sender;
+      msg.innerHTML = `<b>${sender === "user" ? "Tú" : "Botsito 🤖"}:</b> ${text}`;
+      chatDiv.appendChild(msg);
+      chatDiv.scrollTop = chatDiv.scrollHeight;
     }
-    const formData = new FormData();
-    formData.append('file', file);
-    fetch('/upload', { method: 'POST', body: formData })
-        .then(res => res.json())
-        .then(data => { appendMessage('Botsito 🤖', data.message, 'bot-message'); MathJax.typesetPromise(); })
-        .catch(err => appendMessage('Botsito 🤖', `⚠️ Error al subir archivo: ${err}`, 'bot-message'));
-}
-</script>
+
+    async function sendMessage() {
+      const input = document.getElementById("userInput");
+      const userText = input.value.trim();
+      if (!userText) return;
+
+      addMessage(userText, "user");
+      input.value = "";
+
+      try {
+        const res = await fetch("/ask", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: userText })
+        });
+
+        const data = await res.json();
+        addMessage(data.response);
+      } catch (err) {
+        addMessage("⚠️ Error: " + err.message);
+      }
+    }
+
+    function clearChat() {
+      chatDiv.innerHTML = "";
+    }
+
+    async function uploadFile() {
+      const fileInput = document.getElementById("fileInput");
+      const file = fileInput.files[0];
+      if (!file) return addMessage("⚠️ No se seleccionó archivo.", "bot");
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      try {
+        const res = await fetch("/upload", {
+          method: "POST",
+          body: formData
+        });
+
+        const data = await res.json();
+        addMessage(data.message);
+      } catch (err) {
+        addMessage("⚠️ Error al subir archivo: " + err.message);
+      }
+    }
+  </script>
 </body>
 </html>
