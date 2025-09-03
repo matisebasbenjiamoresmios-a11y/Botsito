@@ -7,13 +7,13 @@
   <link rel="icon" href="/favicon.ico" />
   <style>
     :root{
-      --bg:#0b0f14;          /* fondo general */
-      --panel:#121821;       /* tarjetas/paneles */
-      --text:#e6eefc;        /* texto principal */
-      --muted:#98a4ba;       /* texto secundario */
+      --bg:#0b0f14;
+      --panel:#121821;
+      --text:#e6eefc;
+      --muted:#98a4ba;
       --border:rgba(255,255,255,.08);
-      --accent:#4cc9f0;      /* acento */
-      --accent-2:#3a86ff;    /* acento hover */
+      --accent:#4cc9f0;
+      --accent-2:#3a86ff;
       --success:#2dd4bf;
       --radius:16px;
       --shadow:0 10px 30px rgba(0,0,0,.35);
@@ -22,7 +22,6 @@
     *{box-sizing:border-box}
     body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial, sans-serif}
 
-    /* Layout */
     .wrap{min-height:100%;display:grid;grid-template-rows:auto 1fr auto}
     header{position:sticky;top:0;z-index:20;background:linear-gradient(180deg,rgba(0,0,0,.25),transparent);backdrop-filter:blur(6px)}
     .topbar{display:flex;align-items:center;gap:12px;padding:16px 20px}
@@ -33,7 +32,6 @@
     main{padding:18px}
     .container{max-width:980px;margin:0 auto;display:grid;gap:16px}
 
-    /* Panel chat */
     .panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow)}
     .chat-area{display:grid;grid-template-rows:1fr auto}
     #chat{padding:18px;max-height:55vh;overflow:auto;scroll-behavior:smooth}
@@ -41,7 +39,6 @@
     .usuario{background:linear-gradient(135deg,rgba(76,201,240,.15),rgba(58,134,255,.12))}
     .botsito{background:linear-gradient(180deg,rgba(255,255,255,.04),transparent)}
 
-    /* Composer */
     .composer{display:grid;gap:10px;padding:12px;border-top:1px solid var(--border)}
     .row{display:flex;gap:8px;align-items:center}
     #pregunta{flex:1;border:1px solid var(--border);background:rgba(255,255,255,.02);color:var(--text);padding:12px;border-radius:12px;outline:none}
@@ -49,13 +46,8 @@
     button:hover{transform:translateY(-1px);box-shadow:var(--shadow)}
     .primary{background:linear-gradient(135deg,var(--accent),var(--accent-2));border-color:transparent;color:#04151f;font-weight:700}
 
-    /* Resumenes */
     #resumen-container{padding:12px}
-
-    /* Footer */
     footer{color:var(--muted);text-align:center;padding:14px}
-
-    /* Responsive */
     @media (max-width:720px){#chat{max-height:50vh}}
   </style>
 </head>
@@ -70,7 +62,6 @@
 
     <main>
       <div class="container">
-        <!-- Panel de chat -->
         <section class="panel chat-area">
           <div id="chat"></div>
 
@@ -80,19 +71,14 @@
               <button class="primary" onclick="enviarPregunta()">Preguntar</button>
             </div>
             <div class="row">
-              <!-- Input file oculto -->
               <input type="file" id="archivo" style="display:none" onchange="mostrarNombreArchivo()" />
-              <!-- Botón para abrir explorador -->
-              <button type="button" onclick="document.getElementById('archivo').click()">Agregar archivo</button>
-              <!-- Botón para subir -->
+              <button type="button" onclick="document.getElementById('archivo').click()">Agregar archivo 📂</button>
               <button onclick="subirArchivo()">Subir archivo</button>
-              <!-- Texto con nombre del archivo -->
               <small id="nombre-archivo" style="color:var(--muted);margin-left:8px"></small>
             </div>
           </div>
         </section>
 
-        <!-- Resúmenes -->
         <section class="panel" id="resumen-container"></section>
       </div>
     </main>
@@ -100,7 +86,6 @@
     <footer>© <span id="year"></span> Botsito · Render</footer>
   </div>
 
-  <!-- JS original sin cambios en la lógica -->
   <script>
     document.getElementById('year').textContent = new Date().getFullYear();
 
@@ -116,19 +101,18 @@
       mensaje.className = 'mensaje ' + clase;
       mensaje.innerHTML = texto;
       chat.appendChild(mensaje);
-      chat.scrollTop = chat.scrollHeight; // auto-scroll
+      chat.scrollTop = chat.scrollHeight;
     }
 
     function enviarPregunta() {
-      const pregunta = document.getElementById('pregunta').value;
+      const pregunta = document.getElementById('pregunta').value.trim();
       if (!pregunta) return;
       agregarMensaje('<strong>Tú:</strong> ' + pregunta, 'usuario');
+      document.getElementById('pregunta').value = "";
 
       fetch('/preguntar', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pregunta })
       })
         .then(res => res.json())
@@ -143,7 +127,6 @@
     function subirArchivo() {
       const archivo = document.getElementById('archivo').files[0];
       if (!archivo) return;
-
       agregarMensaje('<strong>Botsito 🧑‍🤖:</strong> ⏳ Procesando archivo...', 'botsito');
 
       const formData = new FormData();
@@ -172,6 +155,15 @@
           agregarMensaje('<strong>Botsito 🧑‍🤖:</strong> ⚠️ Error al subir archivo: ' + error.message, 'botsito');
         });
     }
+
+    //Enter para enviar
+    const inputPregunta = document.getElementById('pregunta');
+    inputPregunta.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault(); // evitar salto de línea
+        enviarPregunta();
+      }
+    });
   </script>
 </body>
 </html>
