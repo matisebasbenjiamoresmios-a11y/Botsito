@@ -1,153 +1,148 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Botsito IA</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        body {
-            font-family: 'Segoe UI', sans-serif;
-            background-color: #111;
-            color: white;
-            margin: 0;
-            padding: 0;
-        }
-        .chat-container {
-            max-width: 800px;
-            margin: auto;
-            padding: 20px;
-        }
-        .header {
-            text-align: center;
-            font-size: 2em;
-            margin-bottom: 20px;
-            color: cyan;
-        }
-        .chat-box {
-            background-color: #222;
-            padding: 10px;
-            border-radius: 8px;
-            margin-bottom: 10px;
-        }
-        .user {
-            background-color: teal;
-            padding: 5px 10px;
-            display: inline-block;
-            border-radius: 6px;
-        }
-        .bot {
-            background-color: #333;
-            padding: 10px;
-            border-radius: 8px;
-            margin-top: 5px;
-        }
-        .input-area {
-            display: flex;
-            margin-top: 10px;
-        }
-        input[type="text"] {
-            flex: 1;
-            padding: 10px;
-            border: none;
-            border-radius: 6px;
-        }
-        button {
-            margin-left: 5px;
-            padding: 10px 15px;
-            border: none;
-            border-radius: 6px;
-            background-color: deepskyblue;
-            color: white;
-            cursor: pointer;
-        }
-        #file-upload-btn {
-            background-color: dodgerblue;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Botsito IA</title>
+  <style>
+    body {
+      background-color: #1e1e1e;
+      color: white;
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+    }
+
+    .chat-container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 1rem;
+    }
+
+    .chat-bubble {
+      background-color: #333;
+      border-radius: 10px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .user-message {
+      background-color: teal;
+      padding: 1rem;
+      border-radius: 10px;
+      margin-bottom: 1rem;
+    }
+
+    .bot-label {
+      font-weight: bold;
+    }
+
+    .input-container {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 1rem;
+      flex-wrap: wrap;
+    }
+
+    button {
+      background-color: #00bfff;
+      color: black;
+      padding: 0.5rem 1rem;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    input[type="text"] {
+      flex-grow: 1;
+      padding: 0.5rem;
+      border-radius: 5px;
+      border: none;
+      font-size: 1rem;
+    }
+
+    input[type="file"] {
+      background-color: white;
+      border-radius: 5px;
+      padding: 0.5rem;
+      font-size: 1rem;
+    }
+  </style>
 </head>
 <body>
-    <div class="chat-container">
-        <div class="header">
-            <i class="fa-solid fa-robot"></i> Botsito IA
-        </div>
+  <div class="chat-container" id="chat">
+    <h1>🤖 <span style="color:deepskyblue">Botsito IA</span></h1>
+  </div>
 
-        <div id="chat"></div>
-
-        <div class="input-area">
-            <input type="text" id="user-input" placeholder="¿Qué te gustaría saber?">
-            <button onclick="sendMessage()">💌 Enviar</button>
-            <button onclick="clearChat()">🧹 Limpiar chat</button>
-        </div>
-
-        <div class="input-area" style="margin-top: 5px;">
-            <input type="file" id="fileInput">
-            <button id="file-upload-btn" onclick="uploadFile()">↑ Subir archivo</button>
-        </div>
+  <div class="chat-container">
+    <div class="input-container">
+      <input type="text" id="user-input" placeholder="¿Qué te gustaría saber?"/>
+      <button onclick="enviarPregunta()">💌 Enviar</button>
+      <button onclick="resetChat()">🧹 Limpiar chat</button>
     </div>
 
-    <script>
-        function appendMessage(sender, message) {
-            const chat = document.getElementById("chat");
-            const container = document.createElement("div");
-            container.className = "chat-box";
+    <div class="input-container">
+      <input type="file" id="file-input"/>
+      <button onclick="subirArchivo()">↑ Subir archivo</button>
+    </div>
+  </div>
 
-            const name = document.createElement("strong");
-            name.textContent = sender + " 🤖: ";
+  <script>
+    function agregarBurbuja(texto, clase = "") {
+      const div = document.createElement("div");
+      div.className = clase === "usuario" ? "user-message" : "chat-bubble";
+      div.innerHTML = texto;
+      document.getElementById("chat").appendChild(div);
+      window.scrollTo(0, document.body.scrollHeight);
+    }
 
-            const text = document.createElement("span");
-            text.innerHTML = message;
+    function enviarPregunta() {
+      const input = document.getElementById("user-input");
+      const mensaje = input.value.trim();
+      if (!mensaje) return;
 
-            container.appendChild(name);
-            container.appendChild(text);
-            chat.appendChild(container);
-            chat.scrollTop = chat.scrollHeight;
-        }
+      agregarBurbuja("Tú: " + mensaje, "usuario");
+      input.value = "";
 
-        async function sendMessage() {
-            const input = document.getElementById("user-input");
-            const message = input.value;
-            if (!message) return;
+      fetch("/ask", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ message: mensaje }),
+      })
+      .then(res => res.json())
+      .then(data => agregarBurbuja("<b>Botsito 🤖:</b> " + data.response))
+      .catch(err => agregarBurbuja("<b>Botsito 🤖:</b> ⚠️ Error: " + err));
+    }
 
-            appendMessage("Tú", message);
-            input.value = "";
+    function subirArchivo() {
+      const fileInput = document.getElementById("file-input");
+      const file = fileInput.files[0];
+      if (!file) {
+        alert("Selecciona un archivo primero.");
+        return;
+      }
 
-            try {
-                const response = await fetch("/ask", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ message })
-                });
-                const data = await response.json();
-                appendMessage("Botsito", data.message);
-            } catch (error) {
-                appendMessage("Botsito", "⚠️ Error al procesar la pregunta: " + error.message);
-            }
-        }
+      const formData = new FormData();
+      formData.append("file", file);
 
-        async function uploadFile() {
-            const input = document.getElementById("fileInput");
-            const file = input.files[0];
-            if (!file) return;
+      agregarBurbuja("<b>Botsito 🤖:</b> ⏳ Procesando archivo…");
 
-            const formData = new FormData();
-            formData.append("file", file);
+      fetch("/upload", {
+        method: "POST",
+        body: formData,
+      })
+      .then(res => res.json())
+      .then(data => agregarBurbuja("<b>Botsito 🤖:</b> " + data.message.replace(/\n/g, "<br>")))
+      .catch(err => agregarBurbuja("<b>Botsito 🤖:</b> ⚠️ Error al subir archivo: " + err));
+    }
 
-            try {
-                const response = await fetch("/upload", {
-                    method: "POST",
-                    body: formData
-                });
-                const data = await response.json();
-                appendMessage("Botsito", data.message);
-            } catch (error) {
-                appendMessage("Botsito", "⚠️ Error al subir archivo: " + error.message);
-            }
-        }
-
-        function clearChat() {
-            document.getElementById("chat").innerHTML = "";
-        }
-    </script>
+    function resetChat() {
+      document.getElementById("chat").innerHTML = "<h1>🤖 <span style='color:deepskyblue'>Botsito IA</span></h1>";
+      fetch("/reset", { method: "POST" });
+    }
+  </script>
 </body>
 </html>
