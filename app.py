@@ -9,7 +9,12 @@ app = Flask(__name__)
 # Clave de OpenRouter
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 MODEL_OPENAI = "mistralai/mistral-7b-instruct:free"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
+
+@app.route("/")
+def index():
+    return send_file(os.path.join(BASE_DIR, "index.html"))
 
 @app.route("/robots.txt")
 def robots_txt():
