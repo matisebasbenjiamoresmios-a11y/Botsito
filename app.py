@@ -1,12 +1,13 @@
 from flask import Flask, request, jsonify, send_file
-import requests
 import os
+import requests
 import PyPDF2
 import docx
 
+from bot_core import responder_pregunta
+
 app = Flask(__name__)
 
-# 🔑 Clave de OpenRouter
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 MODEL_OPENAI = "mistralai/mistral-7b-instruct:free"
 
@@ -16,12 +17,14 @@ def index():
 
 @app.route("/ask", methods=["POST"])
 def ask():
-    data = request.get_json()
-    user_msg = data.get("message", "") if data else ""
-    print("📩 Recibido:", user_msg)
-    from bot_core import responder_pregunta
-    bot_reply = responder_pregunta(user_msg)
-    return jsonify({"response": bot_reply})
+    try:
+        data = request.get_json()
+        user_msg = data.get("pregunta", "")
+        print("📩 Recibido:", user_msg)
+        bot_reply = responder_pregunta(user_msg)
+        return jsonify({"response": bot_reply})
+    except Exception as e:
+        return jsonify({"response": f"⚠️ Error al procesar la pregunta: {str(e)}"})
 
 @app.route("/reset", methods=["POST"])
 def reset():
@@ -29,17 +32,17 @@ def reset():
 
 @app.route("/upload", methods=["POST"])
 def upload():
-    if 'file' not in request.files:
-        return jsonify({"message": "⚠️ No se envió ningún archivo."})
-    file = request.files['file']
-    filename = file.filename
-    ext = filename.split('.')[-1].lower()
-
     try:
-        # 1. Leer archivo
+        if 'file' not in request.files:
+            return jsonify({"message": "⚠️ No se envió ningún archivo."})
+
+        file = request.files['file']
+        filename = file.filename
+        ext = filename.split('.')[-1].lower()
+
         if ext == "pdf":
             reader = PyPDF2.PdfReader(file)
-            text = " ".join(page.extract_text() for page in reader.pages if page.extract_text())
+            text = " ".join(page.extract_text() or "" for page in reader.pages)
         elif ext == "txt":
             text = file.read().decode("utf-8")
         elif ext == "docx":
@@ -48,21 +51,17 @@ def upload():
         else:
             return jsonify({"message": "❌ Formato no soportado."})
 
-        # 2. Dividir en partes para no saturar el modelo
-        part_size = 2000
-        parts = [text[i:i + part_size] for i in range(0, len(text), part_size)]
+        partes = [text[i:i+2000] for i in range(0, len(text), 2000)]
+        resumen = ""
+        for idx, parte in enumerate(partes):
+            resumen_parcial = resumir_con_modelo(parte)
+            resumen += f"\n\n📄 Parte {idx+1}:\n{resumen_parcial}"
 
-        resumen_total = ""
-        for idx, part in enumerate(parts, 1):
-            resumen = resumir_con_modelo(part)
-            resumen_total += f"\n\n📄 Resumen parte {idx}/{len(parts)}:\n{resumen}"
-
-        return jsonify({"message": resumen_total})
+        return jsonify({"message": resumen})
     except Exception as e:
-        return jsonify({"message": f"⚠️ Error al procesar archivo: {str(e)}"})
+        return jsonify({"message": f"⚠️ Error procesando archivo: {str(e)}"})
 
-def resumir_con_modelo(texto_parte):
-    """Llama a OpenRouter para resumir un texto en español"""
+def resumir_con_modelo(texto):
     try:
         response = requests.post(
             "https://openrouter.ai/api/v1/chat/completions",
@@ -75,23 +74,18 @@ def resumir_con_modelo(texto_parte):
             json={
                 "model": MODEL_OPENAI,
                 "messages": [
-                    {"role": "user", "content": f"Resume este texto en español:\n{texto_parte}"}
+                    {"role": "user", "content": f"Resume este texto en español:\n{texto}"}
                 ]
             },
             timeout=60
         )
-
         if response.status_code != 200:
-            return f"⚠️ Error de OpenRouter: {response.status_code} - {response.text[:100]}"
+            return f"⚠️ Error OpenRouter: {response.status_code}"
 
-        try:
-            data = response.json()
-            return data['choices'][0]['message']['content']
-        except Exception as e:
-            return f"⚠️ Respuesta inválida de OpenRouter: {str(e)}"
-
+        data = response.json()
+        return data['choices'][0]['message']['content']
     except Exception as e:
-        return f"⚠️ Error al resumir parte: {str(e)}"
+        return f"⚠️ Error al resumir: {str(e)}"
 
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host="0.0.0.0", port=5000)
