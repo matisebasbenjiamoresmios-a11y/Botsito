@@ -3,127 +3,117 @@
 <head>
     <meta charset="UTF-8">
     <title>Botsito IA</title>
-    <link rel="stylesheet" href="https://unpkg.com/modern-css-reset/dist/reset.min.css" />
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async
+            src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <style>
+        html, body { height: 100%; margin: 0; }
         body {
-            background-color: #121212;
-            color: white;
-            font-family: 'Segoe UI', sans-serif;
-            padding: 20px;
+            display: flex; justify-content: center; align-items: center;
+            background-color: #121212; font-family: Arial, sans-serif;
         }
-        h1 {
-            text-align: center;
-            color: cyan;
+        #container {
+            width: 100%; max-width: 600px;
+            border: 2px solid #ccc; border-radius: 15px;
+            padding: 20px; display: flex; flex-direction: column;
         }
-        #chatbox {
-            border: 1px solid #555;
-            border-radius: 10px;
-            padding: 15px;
-            background-color: #1e1e1e;
-            max-width: 700px;
-            margin: 20px auto;
-            min-height: 300px;
+        h1 { color: #00cfff; margin: 0 0 15px; text-align: center; }
+        #chat-box {
+            background-color: #1e1e1e; border-radius: 10px;
+            padding: 10px; overflow-y: auto; height: 350px;
+            margin-bottom: 10px;
         }
-        .user, .bot {
-            margin: 10px 0;
-            padding: 10px;
-            border-radius: 8px;
+        .user-message {
+            background-color: #009688; color: #fff;
+            padding: 8px 12px; border-radius: 10px;
+            margin: 5px 0; max-width: 90%; margin-left: auto;
         }
-        .user {
-            background-color: #00897b;
-            text-align: right;
+        .bot-message {
+            background-color: #333; color: #f0f0f0;
+            padding: 8px 12px; border-radius: 10px;
+            margin: 5px 0; max-width: 90%; margin-right: auto;
         }
-        .bot {
-            background-color: #333;
-            text-align: left;
+        #input-area { display: flex; margin-bottom: 10px; }
+        #user-input {
+            flex: 1; padding: 10px; border-radius: 5px;
+            border: none; outline: none;
+            background-color: #1e1e1e; color: #f0f0f0;
         }
-        input[type="text"] {
-            width: 60%;
-            padding: 10px;
-            margin-right: 10px;
-            border-radius: 5px;
-            border: none;
+        button, label {
+            flex: 1; padding: 10px; border-radius: 5px;
+            border: none; background-color: #00cfff; color: #000;
+            cursor: pointer; margin: 5px; text-align: center;
         }
-        button {
-            padding: 10px 15px;
-            margin: 5px;
-            border: none;
-            background-color: #00bcd4;
-            color: white;
-            border-radius: 5px;
-            cursor: pointer;
-        }
-        input[type="file"] {
-            margin: 10px;
-        }
+        button:hover, label:hover { background-color: #00aacc; }
+        input[type="file"] { display: none; }
+        .button-row { display: flex; gap: 10px; flex-wrap: wrap; }
     </style>
 </head>
 <body>
+<div id="container">
     <h1>🤖 Botsito IA</h1>
-    <div id="chatbox"></div>
-    <div style="text-align: center;">
-        <input type="text" id="input" placeholder="¿Qué te gustaría saber?">
-        <button onclick="send()">💌 Enviar</button>
-        <button onclick="clearChat()">🧹 Limpiar chat</button><br>
-        <input type="file" id="fileInput">
-        <button onclick="upload()">↑ Subir archivo</button>
+    <div id="chat-box"></div>
+    <div id="input-area">
+        <input type="text" id="user-input" placeholder="¿Qué te gustaría saber?">
     </div>
+    <div class="button-row">
+        <button onclick="sendMessage()">🚀 Enviar</button>
+        <button onclick="clearChat()">✏ Limpiar chat</button>
+    </div>
+    <div class="button-row">
+        <label for="file-input">📁 Seleccionar archivo</label>
+        <button onclick="uploadFile()">↑ Subir archivo</button>
+    </div>
+    <input type="file" id="file-input">
+</div>
 
-    <script>
-        const chatbox = document.getElementById("chatbox");
+<script>
+window.onload = () => document.getElementById('user-input').focus();
 
-        function addMessage(text, sender) {
-            const div = document.createElement("div");
-            div.className = sender;
-            div.innerHTML = `<b>${sender === "user" ? "Tú" : "Botsito 🤖"}:</b> ${text}`;
-            chatbox.appendChild(div);
-            chatbox.scrollTop = chatbox.scrollHeight;
-        }
+document.getElementById('user-input').addEventListener('keypress', e => {
+    if (e.key === 'Enter') sendMessage();
+});
 
-        async function send() {
-            const input = document.getElementById("input");
-            const text = input.value;
-            if (!text) return;
+function sendMessage() {
+    const input = document.getElementById('user-input');
+    const message = input.value.trim();
+    if (!message) return;
+    appendMessage('Tú', message, 'user-message');
+    input.value = '';
+    fetch('/ask', { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: message })
+        .then(res => res.json())
+        .then(data => { appendMessage('Botsito 🤖', data.response, 'bot-message'); MathJax.typesetPromise(); })
+        .catch(err => appendMessage('Botsito 🤖', `⚠️ Error: ${err}`, 'bot-message'));
+}
 
-            addMessage(text, "user");
-            input.value = "";
+function appendMessage(sender, text, cssClass) {
+    const chatBox = document.getElementById('chat-box');
+    const div = document.createElement('div');
+    div.className = cssClass;
+    div.innerHTML = `<strong>${sender}:</strong> ${text}`;
+    chatBox.appendChild(div);
+    chatBox.scrollTop = chatBox.scrollHeight;
+}
 
-            try {
-                const res = await fetch("/ask", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ message: text })
-                });
-                const data = await res.json();
-                addMessage(data.response, "bot");
-            } catch (err) {
-                addMessage("⚠️ Error: " + err.message, "bot");
-            }
-        }
+function clearChat() {
+    document.getElementById('chat-box').innerHTML = '';
+    fetch('/reset', { method: 'POST' });
+}
 
-        function clearChat() {
-            chatbox.innerHTML = "";
-        }
-
-        async function upload() {
-            const input = document.getElementById("fileInput");
-            const file = input.files[0];
-            if (!file) return addMessage("⚠️ No se seleccionó archivo.", "bot");
-
-            const formData = new FormData();
-            formData.append("file", file);
-
-            try {
-                const res = await fetch("/upload", {
-                    method: "POST",
-                    body: formData
-                });
-                const data = await res.json();
-                addMessage(data.message, "bot");
-            } catch (err) {
-                addMessage("⚠️ Error al subir archivo: " + err.message, "bot");
-            }
-        }
-    </script>
+function uploadFile() {
+    const fileInput = document.getElementById('file-input');
+    const file = fileInput.files[0];
+    if (!file) {
+        appendMessage('Botsito 🤖', '⚠️ No seleccionaste ningún archivo.', 'bot-message');
+        return;
+    }
+    const formData = new FormData();
+    formData.append('file', file);
+    fetch('/upload', { method: 'POST', body: formData })
+        .then(res => res.json())
+        .then(data => { appendMessage('Botsito 🤖', data.message, 'bot-message'); MathJax.typesetPromise(); })
+        .catch(err => appendMessage('Botsito 🤖', `⚠️ Error al subir archivo: ${err}`, 'bot-message'));
+}
+</script>
 </body>
 </html>
