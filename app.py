@@ -59,7 +59,8 @@ def upload():
 
         return jsonify({"message": resumen_total})
     except Exception as e:
-        return jsonify({"message": f"⚠️ Error al procesar archivo: {str(e)}"})
+        print(f"❌ Error en /upload:\n{e}")
+        return jsonify({"message": f"⚠️ Error al procesar archivo: {str(e)}"}), 500
 
 def resumir_con_modelo(texto_parte):
     try:
