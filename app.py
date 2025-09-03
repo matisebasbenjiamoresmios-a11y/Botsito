@@ -25,10 +25,6 @@ def robots_txt():
 def sitemap_map():
     return send_file("sitemap.xml")
 
-@app.route("/")
-def index():
-    return send_file("index.html")
-
 @app.route("/preguntar", methods=["POST"])
 def ask():
     data = request.get_json()
