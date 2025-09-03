@@ -1,110 +1,129 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Botsito IA</title>
-  <style>
-    body {
-      font-family: sans-serif;
-      background-color: #111;
-      color: white;
-      text-align: center;
-    }
-    #chat {
-      max-width: 700px;
-      margin: auto;
-      padding: 20px;
-      background: #222;
-      border-radius: 10px;
-    }
-    .user, .bot {
-      margin: 10px;
-      padding: 10px;
-      border-radius: 8px;
-    }
-    .user {
-      background-color: #009688;
-      text-align: right;
-    }
-    .bot {
-      background-color: #444;
-      text-align: left;
-    }
-    input, button {
-      margin: 5px;
-      padding: 10px;
-      font-size: 16px;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <title>Botsito IA</title>
+    <link rel="stylesheet" href="https://unpkg.com/modern-css-reset/dist/reset.min.css" />
+    <style>
+        body {
+            background-color: #121212;
+            color: white;
+            font-family: 'Segoe UI', sans-serif;
+            padding: 20px;
+        }
+        h1 {
+            text-align: center;
+            color: cyan;
+        }
+        #chatbox {
+            border: 1px solid #555;
+            border-radius: 10px;
+            padding: 15px;
+            background-color: #1e1e1e;
+            max-width: 700px;
+            margin: 20px auto;
+            min-height: 300px;
+        }
+        .user, .bot {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 8px;
+        }
+        .user {
+            background-color: #00897b;
+            text-align: right;
+        }
+        .bot {
+            background-color: #333;
+            text-align: left;
+        }
+        input[type="text"] {
+            width: 60%;
+            padding: 10px;
+            margin-right: 10px;
+            border-radius: 5px;
+            border: none;
+        }
+        button {
+            padding: 10px 15px;
+            margin: 5px;
+            border: none;
+            background-color: #00bcd4;
+            color: white;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        input[type="file"] {
+            margin: 10px;
+        }
+    </style>
 </head>
 <body>
-  <h1>🤖 Botsito IA</h1>
-  <div id="chat"></div>
-  <input type="text" id="userInput" placeholder="¿Qué te gustaría saber?" />
-  <button onclick="sendMessage()">💌 Enviar</button>
-  <button onclick="clearChat()">🧹 Limpiar chat</button>
-  <br/>
-  <input type="file" id="fileInput"/>
-  <button onclick="uploadFile()">↑ Subir archivo</button>
+    <h1>🤖 Botsito IA</h1>
+    <div id="chatbox"></div>
+    <div style="text-align: center;">
+        <input type="text" id="input" placeholder="¿Qué te gustaría saber?">
+        <button onclick="send()">💌 Enviar</button>
+        <button onclick="clearChat()">🧹 Limpiar chat</button><br>
+        <input type="file" id="fileInput">
+        <button onclick="upload()">↑ Subir archivo</button>
+    </div>
 
-  <script>
-    const chatDiv = document.getElementById("chat");
+    <script>
+        const chatbox = document.getElementById("chatbox");
 
-    function addMessage(text, sender = "bot") {
-      const msg = document.createElement("div");
-      msg.className = sender;
-      msg.innerHTML = `<b>${sender === "user" ? "Tú" : "Botsito 🤖"}:</b> ${text}`;
-      chatDiv.appendChild(msg);
-      chatDiv.scrollTop = chatDiv.scrollHeight;
-    }
+        function addMessage(text, sender) {
+            const div = document.createElement("div");
+            div.className = sender;
+            div.innerHTML = `<b>${sender === "user" ? "Tú" : "Botsito 🤖"}:</b> ${text}`;
+            chatbox.appendChild(div);
+            chatbox.scrollTop = chatbox.scrollHeight;
+        }
 
-    async function sendMessage() {
-      const input = document.getElementById("userInput");
-      const userText = input.value.trim();
-      if (!userText) return;
+        async function send() {
+            const input = document.getElementById("input");
+            const text = input.value;
+            if (!text) return;
 
-      addMessage(userText, "user");
-      input.value = "";
+            addMessage(text, "user");
+            input.value = "";
 
-      try {
-        const res = await fetch("/ask", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: userText })
-        });
+            try {
+                const res = await fetch("/ask", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ message: text })
+                });
+                const data = await res.json();
+                addMessage(data.response, "bot");
+            } catch (err) {
+                addMessage("⚠️ Error: " + err.message, "bot");
+            }
+        }
 
-        const data = await res.json();
-        addMessage(data.response);
-      } catch (err) {
-        addMessage("⚠️ Error: " + err.message);
-      }
-    }
+        function clearChat() {
+            chatbox.innerHTML = "";
+        }
 
-    function clearChat() {
-      chatDiv.innerHTML = "";
-    }
+        async function upload() {
+            const input = document.getElementById("fileInput");
+            const file = input.files[0];
+            if (!file) return addMessage("⚠️ No se seleccionó archivo.", "bot");
 
-    async function uploadFile() {
-      const fileInput = document.getElementById("fileInput");
-      const file = fileInput.files[0];
-      if (!file) return addMessage("⚠️ No se seleccionó archivo.", "bot");
+            const formData = new FormData();
+            formData.append("file", file);
 
-      const formData = new FormData();
-      formData.append("file", file);
-
-      try {
-        const res = await fetch("/upload", {
-          method: "POST",
-          body: formData
-        });
-
-        const data = await res.json();
-        addMessage(data.message);
-      } catch (err) {
-        addMessage("⚠️ Error al subir archivo: " + err.message);
-      }
-    }
-  </script>
+            try {
+                const res = await fetch("/upload", {
+                    method: "POST",
+                    body: formData
+                });
+                const data = await res.json();
+                addMessage(data.message, "bot");
+            } catch (err) {
+                addMessage("⚠️ Error al subir archivo: " + err.message, "bot");
+            }
+        }
+    </script>
 </body>
 </html>
