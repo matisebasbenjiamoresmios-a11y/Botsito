@@ -6,7 +6,6 @@ import docx
 
 app = Flask(__name__)
 
-# 🔑 Clave de OpenRouter
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 MODEL_OPENAI = "mistralai/mistral-7b-instruct:free"
 
@@ -16,11 +15,14 @@ def index():
 
 @app.route("/ask", methods=["POST"])
 def ask():
-    user_msg = request.data.decode("utf-8")
-    print("📩 Recibido:", user_msg)
-    from bot_core import responder_pregunta
-    bot_reply = responder_pregunta(user_msg)
-    return jsonify({"response": bot_reply})
+    try:
+        user_msg = request.get_json().get("message")
+        print("📩 Recibido:", user_msg)
+        from bot_core import responder_pregunta
+        bot_reply = responder_pregunta(user_msg)
+        return jsonify({"response": bot_reply})
+    except Exception as e:
+        return jsonify({"response": f"⚠️ Error al procesar la pregunta: {str(e)}"})
 
 @app.route("/reset", methods=["POST"])
 def reset():
@@ -30,15 +32,12 @@ def reset():
 def upload():
     if 'file' not in request.files:
         return jsonify({"message": "⚠️ No se envió ningún archivo."})
+    
     file = request.files['file']
     filename = file.filename
     ext = filename.split('.')[-1].lower()
 
     try:
-        print("📥 Archivo recibido:", filename)
-        print("📂 Tipo de archivo:", ext)
-
-        # 1. Leer archivo
         if ext == "pdf":
             reader = PyPDF2.PdfReader(file)
             text = " ".join(page.extract_text() for page in reader.pages if page.extract_text())
@@ -50,7 +49,6 @@ def upload():
         else:
             return jsonify({"message": "❌ Formato no soportado."})
 
-        # 2. Dividir en partes para no saturar el modelo
         part_size = 2000
         parts = [text[i:i + part_size] for i in range(0, len(text), part_size)]
 
@@ -61,8 +59,7 @@ def upload():
 
         return jsonify({"message": resumen_total})
     except Exception as e:
-        print("❌ Error en /upload:", str(e))
-        return jsonify({"message": f"⚠️ Error al procesar archivo: {str(e)}"}), 500
+        return jsonify({"message": f"⚠️ Error al procesar archivo: {str(e)}"})
 
 def resumir_con_modelo(texto_parte):
     try:
@@ -86,12 +83,8 @@ def resumir_con_modelo(texto_parte):
         if response.status_code != 200:
             return f"⚠️ Error de OpenRouter: {response.status_code} - {response.text[:100]}"
 
-        try:
-            data = response.json()
-            return data['choices'][0]['message']['content']
-        except Exception as e:
-            return f"⚠️ Respuesta inválida de OpenRouter: {str(e)}"
-
+        data = response.json()
+        return data['choices'][0]['message']['content']
     except Exception as e:
         return f"⚠️ Error al resumir parte: {str(e)}"
 
