@@ -6,9 +6,9 @@ import docx
 
 app = Flask(__name__)
 
-# Clave de OpenRouter
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-MODEL_OPENAI = "mistralai/mistral-7b-instruct:free"
+# ===== OpenAI (antes: OpenRouter) =====
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+MODEL_OPENAI = "gpt-4o"  # puedes cambiar a "gpt-4o" si tienes acceso
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -25,13 +25,11 @@ def index():
 
 @app.route("/robots.txt")
 def robots_txt():
-    # mismo archivo, especifico mimetype para evitar respuestas HTML
     return send_file(os.path.join(BASE_DIR, "robots.txt"), mimetype="text/plain")
 
 
 @app.route("/sitemap.xml")
 def sitemap_map():
-    # mismo archivo, especifico mimetype para evitar respuestas HTML
     return send_file(os.path.join(BASE_DIR, "sitemap.xml"), mimetype="application/xml")
 
 
@@ -44,7 +42,6 @@ def ask():
         bot_reply = responder_pregunta(user_msg)
         return jsonify({"respuesta": bot_reply})
     except Exception as e:
-        # siempre devolvemos JSON para que el front no intente parsear HTML
         return jsonify({"respuesta": f"⚠️ Error al procesar la pregunta: {str(e)}"}), 500
 
 
@@ -58,10 +55,9 @@ def upload():
         nombre = archivo.filename or ""
         extension = nombre.rsplit('.', 1)[-1].lower() if '.' in nombre else ""
 
-        # Leer contenido según tipo (sin cambiar la lógica de resumen)
+        # Leer contenido según tipo (misma lógica)
         texto = ""
         if extension == "pdf":
-            # asegurar posición al inicio para lectores
             archivo.stream.seek(0)
             reader = PyPDF2.PdfReader(archivo.stream)
             texto = " ".join((page.extract_text() or "") for page in reader.pages)
@@ -79,7 +75,7 @@ def upload():
         if not texto:
             return jsonify({"resumen": ["⚠️ El archivo no contiene texto legible."]})
 
-        # Dividir en partes de 1500 caracteres (igual que tu lógica)
+        # Partes de 1500 caracteres (igual que antes)
         partes = [texto[i:i + 1500] for i in range(0, len(texto), 1500)] or [""]
 
         partes_resumen = []
@@ -90,19 +86,17 @@ def upload():
         return jsonify({"resumen": partes_resumen})
 
     except Exception as e:
-        # siempre JSON para que el front no rompa con “Unexpected token <”
         return jsonify({"resumen": [f"⚠️ Error al procesar el archivo: {str(e)}"]}), 500
 
 
 def resumir_con_modelo(texto):
+    """Llama al endpoint oficial de OpenAI (chat.completions)."""
     try:
         response = requests.post(
-            "https://openrouter.ai/api/v1/chat/completions",
+            "https://api.openai.com/v1/chat/completions",
             headers={
-                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                "Authorization": f"Bearer {OPENAI_API_KEY}",
                 "Content-Type": "application/json",
-                "HTTP-Referer": "http://localhost",  # opcional
-                "X-Title": "BotsitoIA"
             },
             json={
                 "model": MODEL_OPENAI,
@@ -110,11 +104,10 @@ def resumir_con_modelo(texto):
                     {"role": "user", "content": f"Resume este texto en español:\n{texto}"}
                 ]
             },
-            timeout=60
+            timeout=(15, 180)  # conexión, lectura (seguro ante respuestas lentas)
         )
 
         if response.status_code != 200:
-            # devolvemos texto legible (sin cambiar comportamiento)
             return f"⚠️ Error {response.status_code} - {response.text[:120]}"
 
         data = response.json()
@@ -125,6 +118,5 @@ def resumir_con_modelo(texto):
 
 
 if __name__ == "__main__":
-    # Render asigna el puerto en la variable de entorno PORT
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
