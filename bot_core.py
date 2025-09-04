@@ -1,13 +1,15 @@
 import requests
 import datetime
 import re
+import os
 
 API_KEY_OPENWEATHER = "16ceddd5179d3a1b145b79e7785b1f8f"
 CIUDAD_POR_DEFECTO = "Pilar"
-import os
-API_KEY_OPENAI = os.environ.get("OPENROUTER_API_KEY")
-API_URL_OPENAI = "https://openrouter.ai/api/v1/chat/completions"
-MODEL_OPENAI = "mistralai/mistral-7b-instruct:free"
+
+# ===== OpenAI (antes: OpenRouter) =====
+API_KEY_OPENAI = os.environ.get("OPENAI_API_KEY")
+API_URL_OPENAI = "https://api.openai.com/v1/chat/completions"
+MODEL_OPENAI = "gpt-40"  # cambia a "gpt-4o" si tienes acceso
 
 mensajes = [{
     "role": "system",
@@ -63,19 +65,21 @@ def responder(pregunta: str, forzar_ia=False) -> str:
             pass
 
     mensajes.append({"role": "user", "content": pregunta})
-    headers = {"Authorization": f"Bearer {API_KEY_OPENAI}", "Content-Type": "application/json"}
+    headers = {
+        "Authorization": f"Bearer {API_KEY_OPENAI}",
+        "Content-Type": "application/json"
+    }
     body = {"model": MODEL_OPENAI, "messages": mensajes}
 
     try:
-        r = requests.post(API_URL_OPENAI, json=body, headers=headers)
+        r = requests.post(API_URL_OPENAI, json=body, headers=headers, timeout=(15, 180))
         r.raise_for_status()
         respuesta = r.json()["choices"][0]["message"]["content"]
         mensajes.append({"role": "assistant", "content": respuesta})
         ultima_respuesta = respuesta
         return respuesta
     except Exception as e:
-        return f"Error al conectar con OpenAI / OpenRouter: {e}"
+        return f"Error al conectar con OpenAI: {e}"
 
 def responder_pregunta(pregunta, forzar_ia=False):
     return responder(pregunta, forzar_ia=forzar_ia)
-
