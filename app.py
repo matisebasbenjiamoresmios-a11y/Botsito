@@ -76,7 +76,7 @@ def upload():
             return jsonify({"resumen": ["⚠️ El archivo no contiene texto legible."]})
 
         # Partes de 1500 caracteres (igual que antes)
-        partes = [texto[i:i + 1500] for i in range(0, len(texto), 1500)] or [""]
+        partes = [texto[i:i + 500] for i in range(0, len(texto), 500)] or [""]
 
         partes_resumen = []
         for parte in partes:
