@@ -32,7 +32,7 @@ def responder(pregunta: str, forzar_ia=False) -> str:
     p = pregunta.lower().strip()
 
     if not forzar_ia:
-        if "quien te creo" in p:
+        if "quien te creo" or "Quienes te crearon" or "Quien te hizo" in p:
             return "Fui creado por un grupo de estudiantes del 2do Informática del Colegio Juan XXIII."
         if "que hora es" in p:
             return datetime.datetime.now().strftime("La hora actual es: %H:%M:%S")
