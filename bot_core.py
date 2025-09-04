@@ -6,10 +6,10 @@ import os
 API_KEY_OPENWEATHER = "16ceddd5179d3a1b145b79e7785b1f8f"
 CIUDAD_POR_DEFECTO = "Pilar"
 
-# ===== OpenAI (antes: OpenRouter) =====
+# ===== OpenAI =====
 API_KEY_OPENAI = os.environ.get("OPENAI_API_KEY")
 API_URL_OPENAI = "https://api.openai.com/v1/chat/completions"
-MODEL_OPENAI = "gpt-40"  # cambia a "gpt-4o" si tienes acceso
+MODEL_OPENAI = "gpt-4o-mini"  # cambia a "gpt-4o" si tienes acceso
 
 mensajes = [{
     "role": "system",
@@ -34,16 +34,25 @@ def responder(pregunta: str, forzar_ia=False) -> str:
     p = pregunta.lower().strip()
 
     if not forzar_ia:
-        if "quien te creo" or "Quienes te crearon" or "Quien te hizo" in p:
+        # --- ÚNICO CAMBIO: condición corregida ---
+        if any(frase in p for frase in [
+            "quien te creo", "quién te creó",
+            "quienes te crearon", "quiénes te crearon",
+            "quien te hizo", "quién te hizo"
+        ]):
             return "Fui creado por un grupo de estudiantes del 2do Informática del Colegio Juan XXIII."
+
         if "que hora es" in p:
             return datetime.datetime.now().strftime("La hora actual es: %H:%M:%S")
+
         if "que dia es" in p or "qué día es" in p:
             hoy = datetime.datetime.now()
             dias = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
             return f"Hoy es {dias[hoy.weekday()]}, {hoy:%d/%m/%Y}."
+
         if "qué dijiste antes" in p or "qué respondiste" in p or "resumime" in p or "lo anterior" in p:
             return ultima_respuesta if ultima_respuesta else "Todavía no respondí nada."
+
         if "clima" in p or "tiempo" in p or "temperatura" in p:
             palabras = p.split()
             ciudad = None
@@ -56,6 +65,7 @@ def responder(pregunta: str, forzar_ia=False) -> str:
                 return obtener_clima(ciudad)
             else:
                 return obtener_clima(CIUDAD_POR_DEFECTO)
+
         try:
             if re.match(r"^[0-9x+\-*/^().\s=]+$", p.replace(",", ".")):
                 expresion = p.replace("^", "**").replace("x", "*")
