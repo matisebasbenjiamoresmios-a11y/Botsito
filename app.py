@@ -10,70 +10,89 @@ app = Flask(__name__)
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 MODEL_OPENAI = "mistralai/mistral-7b-instruct:free"
 
-
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 @app.route("/")
 def index():
     resp = make_response(send_file(os.path.join(BASE_DIR, "index.html")))
-    # Desactivar caché para el HTML (importante mientras verificás SEO)
+    # (solo para ver cambios al instante; no altera la lógica)
     resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     resp.headers["Pragma"] = "no-cache"
     resp.headers["Expires"] = "0"
     return resp
 
+
 @app.route("/robots.txt")
 def robots_txt():
-    return send_file("robots.txt")
+    # mismo archivo, especifico mimetype para evitar respuestas HTML
+    return send_file(os.path.join(BASE_DIR, "robots.txt"), mimetype="text/plain")
 
 
 @app.route("/sitemap.xml")
 def sitemap_map():
-    return send_file("sitemap.xml")
+    # mismo archivo, especifico mimetype para evitar respuestas HTML
+    return send_file(os.path.join(BASE_DIR, "sitemap.xml"), mimetype="application/xml")
+
 
 @app.route("/preguntar", methods=["POST"])
 def ask():
-    data = request.get_json()
-    user_msg = data.get("pregunta", "")
-    from bot_core import responder_pregunta
-    bot_reply = responder_pregunta(user_msg)
-    return jsonify({"respuesta": bot_reply})
+    try:
+        data = request.get_json()
+        user_msg = (data or {}).get("pregunta", "")
+        from bot_core import responder_pregunta
+        bot_reply = responder_pregunta(user_msg)
+        return jsonify({"respuesta": bot_reply})
+    except Exception as e:
+        # siempre devolvemos JSON para que el front no intente parsear HTML
+        return jsonify({"respuesta": f"⚠️ Error al procesar la pregunta: {str(e)}"}), 500
+
 
 @app.route("/upload", methods=["POST"])
 def upload():
-    if 'archivo' not in request.files:
-        return jsonify({"resumen": ["⚠️ No se envió ningún archivo."]})
-
-    archivo = request.files['archivo']
-    nombre = archivo.filename
-    extension = nombre.split('.')[-1].lower()
-
     try:
-        # Leer contenido según tipo
+        if 'archivo' not in request.files:
+            return jsonify({"resumen": ["⚠️ No se envió ningún archivo."]})
+
+        archivo = request.files['archivo']
+        nombre = archivo.filename or ""
+        extension = nombre.rsplit('.', 1)[-1].lower() if '.' in nombre else ""
+
+        # Leer contenido según tipo (sin cambiar la lógica de resumen)
+        texto = ""
         if extension == "pdf":
-            reader = PyPDF2.PdfReader(archivo)
-            texto = " ".join(page.extract_text() for page in reader.pages if page.extract_text())
+            # asegurar posición al inicio para lectores
+            archivo.stream.seek(0)
+            reader = PyPDF2.PdfReader(archivo.stream)
+            texto = " ".join((page.extract_text() or "") for page in reader.pages)
         elif extension == "txt":
-            texto = archivo.read().decode("utf-8")
+            archivo.stream.seek(0)
+            texto = archivo.read().decode("utf-8", errors="ignore")
         elif extension == "docx":
+            archivo.stream.seek(0)
             doc = docx.Document(archivo)
             texto = " ".join(p.text for p in doc.paragraphs)
         else:
             return jsonify({"resumen": ["❌ Formato no soportado. Usa PDF, DOCX o TXT."]})
 
-        # Dividir en partes de 1500 caracteres
-        partes = [texto[i:i + 1500] for i in range(0, len(texto), 1500)]
+        texto = (texto or "").strip()
+        if not texto:
+            return jsonify({"resumen": ["⚠️ El archivo no contiene texto legible."]})
+
+        # Dividir en partes de 1500 caracteres (igual que tu lógica)
+        partes = [texto[i:i + 1500] for i in range(0, len(texto), 1500)] or [""]
 
         partes_resumen = []
-        for idx, parte in enumerate(partes, 1):
+        for parte in partes:
             resumen = resumir_con_modelo(parte)
             partes_resumen.append(resumen)
 
         return jsonify({"resumen": partes_resumen})
 
     except Exception as e:
-        return jsonify({"resumen": [f"⚠️ Error al procesar el archivo: {str(e)}"]})
+        # siempre JSON para que el front no rompa con “Unexpected token <”
+        return jsonify({"resumen": [f"⚠️ Error al procesar el archivo: {str(e)}"]}), 500
+
 
 def resumir_con_modelo(texto):
     try:
@@ -82,7 +101,7 @@ def resumir_con_modelo(texto):
             headers={
                 "Authorization": f"Bearer {OPENROUTER_API_KEY}",
                 "Content-Type": "application/json",
-                "HTTP-Referer": "http://localhost",
+                "HTTP-Referer": "http://localhost",  # opcional
                 "X-Title": "BotsitoIA"
             },
             json={
@@ -95,13 +114,15 @@ def resumir_con_modelo(texto):
         )
 
         if response.status_code != 200:
-            return f"⚠️ Error {response.status_code} - {response.text[:100]}"
+            # devolvemos texto legible (sin cambiar comportamiento)
+            return f"⚠️ Error {response.status_code} - {response.text[:120]}"
 
         data = response.json()
         return data['choices'][0]['message']['content']
 
     except Exception as e:
         return f"⚠️ Error al resumir: {str(e)}"
+
 
 if __name__ == "__main__":
     # Render asigna el puerto en la variable de entorno PORT
