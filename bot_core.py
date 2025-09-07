@@ -1,8 +1,10 @@
 import requests
 import datetime
+from zoneinfo import ZoneInfo
 import re
 import os
 
+APP_TZ = os.getenv("APP_TZ", "America/Asuncion")
 API_KEY_OPENWEATHER = "16ceddd5179d3a1b145b79e7785b1f8f"
 CIUDAD_POR_DEFECTO = "Pilar"
 
@@ -17,6 +19,10 @@ mensajes = [{
 }]
 
 ultima_respuesta = ""
+
+
+def ahora_local():
+    return datetime.datetime.now(ZoneInfo(APP_TZ))
 
 def obtener_clima(ciudad):
     url = f"http://api.openweathermap.org/data/2.5/weather?q={ciudad}&appid={API_KEY_OPENWEATHER}&lang=es&units=metric"
@@ -42,11 +48,11 @@ def responder(pregunta: str, forzar_ia=False) -> str:
         ]):
             return "Fui creado por un grupo de estudiantes del 2do Informática del Colegio Juan XXIII."
 
-        if "que hora es" in p:
-            return datetime.datetime.now().strftime("La hora actual es: %H:%M:%S")
+        if "que hora es" in p or "qué hora es" in p:
+            return ahora_local().strftime("La hora local es: %H:%M:%S")
 
         if "que dia es" in p or "qué día es" in p:
-            hoy = datetime.datetime.now()
+            hoy = ahora_local()
             dias = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
             return f"Hoy es {dias[hoy.weekday()]}, {hoy:%d/%m/%Y}."
 
