@@ -2,179 +2,193 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Botsito IA - Asistente Escolar.</title>
-  <meta name="description" content="Bot<sito IA es un asistente escolar en español, impulsado por inteligencia artificial. Responde preguntas y resume archivos PDF, DOCX y TXT." />
-  <meta name="google-site-verification" content="2uM-9-F7PlxZRoCK0vninnkWq82tlR5Quz7vgViT9WQ" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Botsito IA - Asistente Escolar</title>
   <link rel="icon" href="/favicon.ico" />
-  <!-- VERSION: seo-force-01 -->
+
+  <!-- CSS principal -->
   <style>
-    :root{
-      --bg:#0b0f14;
-      --panel:#121821;
-      --text:#e6eefc;
-      --muted:#98a4ba;
-      --border:rgba(255,255,255,.08);
-      --accent:#4cc9f0;
-      --accent-2:#3a86ff;
-      --success:#2dd4bf;
-      --radius:16px;
-      --shadow:0 10px 30px rgba(0,0,0,.35);
+    body {
+      background-color: #121212;
+      color: #e6e6e6;
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      height: 100vh;
     }
-    html,body{height:100%}
-    *{box-sizing:border-box}
-    body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial, sans-serif}
-
-    .wrap{min-height:100%;display:grid;grid-template-rows:auto 1fr auto}
-    header{position:sticky;top:0;z-index:20;background:linear-gradient(180deg,rgba(0,0,0,.25),transparent);backdrop-filter:blur(6px)}
-    .topbar{display:flex;align-items:center;gap:12px;padding:16px 20px}
-    .logo{width:36px;height:36px;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:grid;place-items:center;color:#06131d;font-weight:900}
-    .brand{font-weight:700}
-    .brand small{display:block;color:var(--muted);font-weight:400}
-
-    main{padding:18px}
-    .container{max-width:980px;margin:0 auto;display:grid;gap:16px}
-
-    .panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow)}
-    .chat-area{display:grid;grid-template-rows:1fr auto}
-    #chat{padding:18px;max-height:55vh;overflow:auto;scroll-behavior:smooth}
-    .mensaje{background:linear-gradient(180deg,rgba(255,255,255,.03),transparent);border:1px solid var(--border);border-radius:14px;padding:10px 12px;margin-bottom:10px}
-    .usuario{background:linear-gradient(135deg,rgba(76,201,240,.15),rgba(58,134,255,.12))}
-    .botsito{background:linear-gradient(180deg,rgba(255,255,255,.04),transparent)}
-
-    .composer{display:grid;gap:10px;padding:12px;border-top:1px solid var(--border)}
-    .row{display:flex;gap:8px;align-items:center}
-    #pregunta{flex:1;border:1px solid var(--border);background:rgba(255,255,255,.02);color:var(--text);padding:12px;border-radius:12px;outline:none}
-    button{appearance:none;border:1px solid var(--border);background:var(--panel);color:var(--text);padding:10px 14px;border-radius:12px;cursor:pointer}
-    button:hover{transform:translateY(-1px);box-shadow:var(--shadow)}
-    .primary{background:linear-gradient(135deg,var(--accent),var(--accent-2));border-color:transparent;color:#04151f;font-weight:700}
-
-    #resumen-container{padding:12px}
-    footer{color:var(--muted);text-align:center;padding:14px}
-    @media (max-width:720px){#chat{max-height:50vh}}
+    #chat-box {
+      width: 90%;
+      max-width: 800px;
+      height: 70vh;
+      overflow-y: auto;
+      border: 1px solid #333;
+      border-radius: 10px;
+      padding: 15px;
+      margin-top: 20px;
+      background-color: #1e1e1e;
+    }
+    .user-message {
+      background-color: #009688;
+      color: white;
+      padding: 8px 12px;
+      border-radius: 10px;
+      margin: 5px 0;
+      text-align: right;
+    }
+    .bot-message {
+      background-color: #333;
+      color: #f0f0f0;
+      padding: 8px 12px;
+      border-radius: 10px;
+      margin: 5px 0;
+      text-align: left;
+    }
+    #input-area {
+      width: 90%;
+      max-width: 800px;
+      display: flex;
+      margin: 20px 0;
+    }
+    #user-input {
+      flex: 1;
+      padding: 10px;
+      border-radius: 5px;
+      border: none;
+      outline: none;
+      background-color: #1e1e1e;
+      color: #fff;
+    }
+    button {
+      background-color: #007bff;
+      color: #fff;
+      border: none;
+      padding: 10px 15px;
+      margin-left: 10px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
+    pre {
+      background: #0d1117;
+      color: #e6e6e6;
+      padding: 10px;
+      border-radius: 5px;
+      overflow-x: auto;
+    }
+    code {
+      font-family: "Fira Code", monospace;
+    }
   </style>
+
+  <!-- Highlight.js para mostrar código con formato -->
+  <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css">
+  <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+  <script>hljs.highlightAll();</script>
 </head>
 <body>
-  <div class="wrap">
-    <header>
-      <div class="topbar">
-        <div class="logo">B</div>
-        <div class="brand">Botsito IA <small>Asistente escolar</small></div>
-      </div>
-    </header>
+  <h1>Botsito 🤖</h1>
+  <div id="chat-box"></div>
 
-    <main>
-      <div class="container">
-        <section class="panel chat-area">
-          <div id="chat"></div>
-
-          <div class="composer">
-            <div class="row">
-              <input type="text" id="pregunta" placeholder="Escribe tu pregunta…" />
-              <button class="primary" onclick="enviarPregunta()">Preguntar</button>
-              <!-- Nuevo botón limpiar -->
-              <button type="button" onclick="limpiarChat()">🧼 Limpiar pantalla</button>
-            </div>
-            <div class="row">
-              <input type="file" id="archivo" style="display:none" onchange="mostrarNombreArchivo()" />
-              <button type="button" onclick="document.getElementById('archivo').click()">Agregar archivo 📂</button>
-              <button onclick="subirArchivo()">Subir archivo</button>
-              <small id="nombre-archivo" style="color:var(--muted);margin-left:8px"></small>
-            </div>
-          </div>
-        </section>
-
-        <section class="panel" id="resumen-container"></section>
-      </div>
-    </main>
-
-    <footer>© <span id="year"></span> Botsito · Render</footer>
+  <div id="input-area">
+    <input type="text" id="user-input" placeholder="Escribe tu pregunta..." />
+    <button onclick="sendMessage()">Preguntar</button>
+    <button onclick="clearChat()">Limpiar pantalla</button>
   </div>
 
+  <input type="file" id="file-input" />
+  <button onclick="uploadFile()">Subir archivo</button>
+
   <script>
-    document.getElementById('year').textContent = new Date().getFullYear();
+    async function sendMessage() {
+      const input = document.getElementById("user-input");
+      const message = input.value.trim();
+      if (!message) return;
 
-    function mostrarNombreArchivo() {
-      const archivo = document.getElementById('archivo').files[0];
-      const label = document.getElementById('nombre-archivo');
-      label.textContent = archivo ? archivo.name : "";
+      addMessage("Tú", message, "user-message");
+      input.value = "";
+
+      const response = await fetch("/preguntar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pregunta: message })
+      });
+      const data = await response.json();
+
+      renderBotMessage(data.respuesta);
     }
 
-    function agregarMensaje(texto, clase = '') {
-      const chat = document.getElementById('chat');
-      const mensaje = document.createElement('div');
-      mensaje.className = 'mensaje ' + clase;
-      mensaje.innerHTML = texto;
-      chat.appendChild(mensaje);
-      chat.scrollTop = chat.scrollHeight;
+    function renderBotMessage(text) {
+      const chatBox = document.getElementById("chat-box");
+
+      // Procesar si hay bloques de código
+      if (text.includes("```")) {
+        const partes = text.split("```");
+        let mensajeFinal = "";
+
+        for (let i = 0; i < partes.length; i++) {
+          if (i % 2 === 1) {
+            mensajeFinal += `<pre><code>${partes[i]}</code></pre>`;
+          } else {
+            mensajeFinal += `<p>${partes[i]}</p>`;
+          }
+        }
+
+        const div = document.createElement("div");
+        div.className = "bot-message";
+        div.innerHTML = mensajeFinal;
+        chatBox.appendChild(div);
+        hljs.highlightAll(); // resaltar código
+      } else {
+        addMessage("Botsito", text, "bot-message");
+      }
+
+      chatBox.scrollTop = chatBox.scrollHeight;
     }
 
-    function enviarPregunta() {
-      const pregunta = document.getElementById('pregunta').value.trim();
-      if (!pregunta) return;
-      agregarMensaje('<strong>Tú:</strong> ' + pregunta, 'usuario');
-      document.getElementById('pregunta').value = "";
-
-      fetch('/preguntar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pregunta })
-      })
-        .then(res => res.json())
-        .then(data => {
-          agregarMensaje('<strong>Botsito 🧑‍🤖:</strong> ' + data.respuesta, 'botsito');
-        })
-        .catch(err => {
-          agregarMensaje('<strong>Botsito 🧑‍🤖:</strong> ⚠️ Error al procesar la pregunta: ' + err.message, 'botsito');
-        });
+    function addMessage(sender, text, className) {
+      const chatBox = document.getElementById("chat-box");
+      const div = document.createElement("div");
+      div.className = className;
+      div.textContent = sender + ": " + text;
+      chatBox.appendChild(div);
+      chatBox.scrollTop = chatBox.scrollHeight;
     }
 
-    function subirArchivo() {
-      const archivo = document.getElementById('archivo').files[0];
-      if (!archivo) return;
-      agregarMensaje('<strong>Botsito 🧑‍🤖:</strong> ⏳ Procesando archivo...', 'botsito');
+    function clearChat() {
+      document.getElementById("chat-box").innerHTML = "";
+    }
+
+    async function uploadFile() {
+      const fileInput = document.getElementById("file-input");
+      if (fileInput.files.length === 0) return alert("Selecciona un archivo");
 
       const formData = new FormData();
-      formData.append('archivo', archivo);
+      formData.append("archivo", fileInput.files[0]);
 
-      fetch('/upload', {
-        method: 'POST',
-        body: formData
-      })
-        .then(res => res.json())
-        .then(respuesta => {
-          if (respuesta.resumen) {
-            const resumenContainer = document.getElementById('resumen-container');
-            resumenContainer.innerHTML = '';
-            respuesta.resumen.forEach((parte, index) => {
-              const parteElemento = document.createElement('div');
-              parteElemento.className = 'mensaje botsito';
-              parteElemento.innerHTML = `<strong>Botsito 🧑‍🤖 (Resumen parte ${index + 1}):</strong><br>${parte}`;
-              resumenContainer.appendChild(parteElemento);
-            });
-          } else {
-            agregarMensaje('<strong>Botsito 🧑‍🤖:</strong> ✅ Archivo recibido correctamente.', 'botsito');
-          }
-        })
-        .catch(error => {
-          agregarMensaje('<strong>Botsito 🧑‍🤖:</strong> ⚠️ Error al subir archivo: ' + error.message, 'botsito');
+      addMessage("Botsito", "⏳ Procesando archivo...", "bot-message");
+
+      try {
+        const response = await fetch("/upload", {
+          method: "POST",
+          body: formData
         });
-    }
 
-    // 🚀 Nuevo: limpiar pantalla
-    function limpiarChat() {
-      document.getElementById('chat').innerHTML = '';
-      document.getElementById('resumen-container').innerHTML = '';
-    }
-
-    // 🚀 Enter para enviar
-    const inputPregunta = document.getElementById('pregunta');
-    inputPregunta.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        enviarPregunta();
+        const data = await response.json();
+        if (data.resumen) {
+          data.resumen.forEach((parte, idx) => {
+            renderBotMessage(`(Resumen parte ${idx + 1}): ${parte}`);
+          });
+        }
+      } catch (err) {
+        addMessage("Botsito", "⚠️ Error al subir archivo", "bot-message");
       }
-    });
+    }
   </script>
 </body>
 </html>
