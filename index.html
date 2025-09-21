@@ -87,7 +87,7 @@
   </style>
 
   <!-- Highlight.js para mostrar código con formato -->
-  <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css">
+  <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/github-dark.min.css">
   <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
   <script>hljs.highlightAll();</script>
 </head>
@@ -133,7 +133,16 @@
 
         for (let i = 0; i < partes.length; i++) {
           if (i % 2 === 1) {
-            mensajeFinal += `<pre><code>${partes[i]}</code></pre>`;
+            // extraer lenguaje si viene como "js\n..."
+            const bloque = partes[i].trim();
+            const firstLine = bloque.split("\n")[0];
+            let code = bloque;
+            let lang = "";
+            if (firstLine.match(/^[a-zA-Z]+$/)) {
+              lang = firstLine;
+              code = bloque.substring(firstLine.length).trim();
+            }
+            mensajeFinal += `<pre><code class="language-${lang}">${code}</code></pre>`;
           } else {
             mensajeFinal += `<p>${partes[i]}</p>`;
           }
