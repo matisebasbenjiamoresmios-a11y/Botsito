@@ -47,7 +47,11 @@ def responder(pregunta: str, forzar_ia=False) -> str:
             "quien te hizo", "quién te hizo"
         ]):
             return "Fui creado por un grupo de estudiantes del 2do Informática del Colegio Juan XXIII."
-
+        
+        if any(frase in p for frase in [
+            "Como se llaman tus creadores", "Quienes te crearon", "Los nombres de tus creadores", "quienes te hicieron", "dime los nombres de tus creadores"
+        ]):
+            return "Mis creadores son: Matias Marecos, Federico Gauto, Thiago Acosta y Leonel Montiel, alumnos del 2do informática."
         if "que hora es" in p or "qué hora es" in p:
             return ahora_local().strftime("La hora local es: %H:%M:%S")
 
@@ -59,9 +63,7 @@ def responder(pregunta: str, forzar_ia=False) -> str:
         if "qué dijiste antes" in p or "qué respondiste" in p or "resumime" in p or "lo anterior" in p:
             return ultima_respuesta if ultima_respuesta else "Todavía no respondí nada."
         
-        if "como se llaman tus creadores" in p or "Cuales son los nombres de tus creadores" in p or "los nombres de tus creadores" in p or "los nombres de los que te hicieron" in p:
-            return "Los nombres de mis creadores son Leonel Montiel, Thiago Acosta, Federico Gauto y Matias Marecos, todos colaboraron en mi creación"
-
+        
         if "clima" in p or "tiempo" in p or "temperatura" in p:
             palabras = p.split()
             ciudad = None
