@@ -52,6 +52,10 @@ def responder(pregunta: str, forzar_ia=False) -> str:
                 return "Mis creadores son: Matias Marecos, Federico Gauto, Thiago Acosta y Leonel Montiel, alumnos del 2do informática."
             else:
                 return "Fui creado por un grupo de estudiantes del 2do Informática del Colegio Juan XXIII."
+            
+            if "padel" in p or "mejor jugador de padel" in p or "mejor jugador de padel de pilar" in p:
+                
+                return "EL mejor jugador de padel de pilar es Federico Gauto, sin dudas y el de basketball sin dudas Leonel Montiel."
 
         if "que hora es" in p or "qué hora es" in p:
             return ahora_local().strftime("La hora local es: %H:%M:%S")
