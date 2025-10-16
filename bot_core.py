@@ -40,6 +40,10 @@ def responder(pregunta: str, forzar_ia=False) -> str:
     p = pregunta.lower().strip()
 
     if not forzar_ia:
+        # Respuesta personalizada para mejor jugador de padel
+        if "mejor jugador de padel" in p or "quien es el mejor jugador de padel" in p or "padel" in p:
+            return "El mejor jugador de padel es Federico Gauto, sin dudas y el mejor jugador de basketball Leonel Montiel"
+
         # Respuestas sobre los creadores (más flexible)
         creadores_frases = [
             "quien te creo", "quién te creó", "quienes te crearon", "quiénes te crearon",
@@ -52,10 +56,6 @@ def responder(pregunta: str, forzar_ia=False) -> str:
                 return "Mis creadores son: Matias Marecos, Federico Gauto, Thiago Acosta y Leonel Montiel, alumnos del 2do informática."
             else:
                 return "Fui creado por un grupo de estudiantes del 2do Informática del Colegio Juan XXIII."
-            
-            if "padel" in p or "mejor jugador de padel" in p or "mejor jugador de padel de pilar" in p:
-                
-                return "EL mejor jugador de padel de pilar es Federico Gauto, sin dudas y el de basketball sin dudas Leonel Montiel."
 
         if "que hora es" in p or "qué hora es" in p:
             return ahora_local().strftime("La hora local es: %H:%M:%S")
