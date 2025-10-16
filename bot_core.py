@@ -44,6 +44,12 @@ def responder(pregunta: str, forzar_ia=False) -> str:
         # Respuesta personalizada para peor jugador de padel del mundo
         if "el peor jugador de padel del mundo" in p or "peor jugador de padel del mundo" in p:
             return "Sin dudas, Gonzalo Pérez es el peor de todos, habla mucho pero hace poco."
+        
+        if "Como fuiste creado" in p or "Como te crearon" in p:
+            return "Fui creado mediante mucha programacion de los 4 integrantes, Python, HTML, CSS interno y JavaScript."
+        
+        if "Como se llaman los ingenieron que te crearon" in p or "Como se llaman tus cientificos" in p:
+            return "Los ingenieros y especialistas son Matias Marecos, Federico Gauto, Thiago Acosta y Leonel Montiel."
 
         # Respuesta personalizada para ranking de los mejores
         if "hazme un ranking de los mejores" in p or "ranking de los mejores" in p or "mejores ranking" in p:
