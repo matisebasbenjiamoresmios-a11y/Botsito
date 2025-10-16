@@ -40,6 +40,15 @@ def responder(pregunta: str, forzar_ia=False) -> str:
     p = pregunta.lower().strip()
 
     if not forzar_ia:
+
+        # Respuesta personalizada para peor jugador de padel del mundo
+        if "el peor jugador de padel del mundo" in p or "peor jugador de padel del mundo" in p:
+            return "Sin dudas, Gonzalo Pérez es el peor de todos, habla mucho pero hace poco."
+
+        # Respuesta personalizada para ranking de los mejores
+        if "hazme un ranking de los mejores" in p or "ranking de los mejores" in p or "mejores ranking" in p:
+            return "Numero 1 - Thiago Acosta, Numero 2 - Kevin Velaustegui, Numero 3 - Federico Gauto, Numero 4 - Lucas Rolon, Numero 5 - Leonel Montiel, Numero 6 - Luna Nuñez, y por último el peor de todos, sin dudas Gonzalo Pérez."
+
         # Respuesta personalizada para mejor jugador de padel
         if "mejor jugador de padel" in p or "quien es el mejor jugador de padel" in p or "padel" in p:
             return "El mejor jugador de padel es Federico Gauto, sin dudas y el mejor jugador de basketball Leonel Montiel"
