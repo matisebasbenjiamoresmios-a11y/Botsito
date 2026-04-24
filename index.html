@@ -249,179 +249,170 @@
   <script>
     document.getElementById('year').textContent = new Date().getFullYear();
 
-    function mostrarNombreArchivo() {
-      const archivo = document.getElementById('archivo').files[0];
-      const label = document.getElementById('nombre-archivo');
-      label.textContent = archivo ? archivo.name : "";
+let audioActual = null;
+
+function mostrarNombreArchivo() {
+  const archivo = document.getElementById('archivo').files[0];
+  const label = document.getElementById('nombre-archivo');
+  label.textContent = archivo ? archivo.name : "";
+}
+
+function agregarMensaje(texto, clase = '') {
+  const chat = document.getElementById('chat');
+  const mensaje = document.createElement('div');
+  mensaje.className = 'mensaje ' + clase;
+  mensaje.innerHTML = texto;
+  chat.appendChild(mensaje);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function renderBotMessage(text) {
+  agregarMensaje('<strong>Botsito 🧑‍🤖:</strong> ' + text, 'botsito');
+}
+
+async function hablarConOpenAI(texto) {
+  try {
+    if (!texto) return;
+
+    if (audioActual) {
+      audioActual.pause();
+      audioActual = null;
     }
 
-    function agregarMensaje(texto, clase = '') {
-      const chat = document.getElementById('chat');
-      const mensaje = document.createElement('div');
-      mensaje.className = 'mensaje ' + clase;
-      mensaje.innerHTML = texto;
-      chat.appendChild(mensaje);
-      chat.scrollTop = chat.scrollHeight;
-    }
-
-    function renderBotMessage(text) {
-      const chat = document.getElementById('chat');
-
-      if (text.includes("```")) {
-        const partes = text.split("```");
-        let mensajeFinal = "";
-
-        for (let i = 0; i < partes.length; i++) {
-          if (i % 2 === 1) {
-            const bloque = partes[i].trim();
-            const firstLine = bloque.split("\n")[0];
-            let code = bloque;
-            let lang = "";
-
-            if (firstLine.match(/^[a-zA-Z]+$/)) {
-              lang = firstLine;
-              code = bloque.substring(firstLine.length).trim();
-            }
-
-            mensajeFinal += `<pre><code class="language-${lang}">${code}</code></pre>`;
-          } else {
-            mensajeFinal += `<p>${partes[i]}</p>`;
-          }
-        }
-
-        const mensaje = document.createElement('div');
-        mensaje.className = 'mensaje botsito';
-        mensaje.innerHTML = `<strong>Botsito 🧑‍🤖:</strong><br>${mensajeFinal}`;
-        chat.appendChild(mensaje);
-        chat.scrollTop = chat.scrollHeight;
-        hljs.highlightAll();
-      } else {
-        agregarMensaje('<strong>Botsito 🧑‍🤖:</strong> ' + text, 'botsito');
-      }
-    }
-
-    function hablar(texto) {
-      if (!texto) return;
-
-      speechSynthesis.cancel();
-
-      const voz = new SpeechSynthesisUtterance(texto);
-      voz.lang = "es-ES";
-      voz.rate = 1;
-      voz.pitch = 1;
-      voz.volume = 1;
-
-      speechSynthesis.speak(voz);
-    }
-
-    function detenerVoz() {
-      speechSynthesis.cancel();
-    }
-
-    function escucharVoz() {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-
-      if (!SpeechRecognition) {
-        alert("Tu navegador no soporta reconocimiento de voz. Usá Google Chrome.");
-        return;
-      }
-
-      const reconocimiento = new SpeechRecognition();
-
-      reconocimiento.lang = "es-PY";
-      reconocimiento.continuous = false;
-      reconocimiento.interimResults = false;
-
-      reconocimiento.start();
-
-      reconocimiento.onstart = function () {
-        agregarMensaje("<strong>Botsito 🧑‍🤖:</strong> 🎙️ Te estoy escuchando...", "botsito");
-      };
-
-      reconocimiento.onresult = function (event) {
-        const texto = event.results[0][0].transcript;
-        document.getElementById("pregunta").value = texto;
-        enviarPregunta();
-      };
-
-      reconocimiento.onerror = function (event) {
-        agregarMensaje("<strong>Botsito 🧑‍🤖:</strong> ⚠️ Error al escuchar: " + event.error, "botsito");
-      };
-    }
-
-    function enviarPregunta() {
-      const pregunta = document.getElementById('pregunta').value.trim();
-
-      if (!pregunta) return;
-
-      agregarMensaje('<strong>Tú:</strong> ' + pregunta, 'usuario');
-      document.getElementById('pregunta').value = "";
-
-      fetch('/preguntar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pregunta })
-      })
-      .then(res => res.json())
-      .then(data => {
-        renderBotMessage(data.respuesta);
-        hablar(data.respuesta);
-      })
-      .catch(err => {
-        agregarMensaje('<strong>Botsito 🧑‍🤖:</strong> ⚠️ Error al procesar la pregunta: ' + err.message, 'botsito');
-      });
-    }
-
-    function subirArchivo() {
-      const archivo = document.getElementById('archivo').files[0];
-
-      if (!archivo) return;
-
-      agregarMensaje('<strong>Botsito 🧑‍🤖:</strong> ⏳ Procesando archivo...', 'botsito');
-
-      const formData = new FormData();
-      formData.append('archivo', archivo);
-
-      fetch('/upload', {
-        method: 'POST',
-        body: formData
-      })
-      .then(res => res.json())
-      .then(respuesta => {
-        if (respuesta.resumen) {
-          const resumenContainer = document.getElementById('resumen-container');
-          resumenContainer.innerHTML = '';
-
-          respuesta.resumen.forEach((parte, index) => {
-            const parteElemento = document.createElement('div');
-            parteElemento.className = 'mensaje botsito';
-            parteElemento.innerHTML = `<strong>Botsito 🧑‍🤖 (Resumen parte ${index + 1}):</strong><br>${parte}`;
-            resumenContainer.appendChild(parteElemento);
-            hljs.highlightAll();
-          });
-        } else {
-          agregarMensaje('<strong>Botsito 🧑‍🤖:</strong> ✅ Archivo recibido correctamente.', 'botsito');
-        }
-      })
-      .catch(error => {
-        agregarMensaje('<strong>Botsito 🧑‍🤖:</strong> ⚠️ Error al subir archivo: ' + error.message, 'botsito');
-      });
-    }
-
-    function limpiarChat() {
-      document.getElementById('chat').innerHTML = "";
-      document.getElementById('resumen-container').innerHTML = "";
-      speechSynthesis.cancel();
-    }
-
-    const inputPregunta = document.getElementById('pregunta');
-
-    inputPregunta.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        enviarPregunta();
-      }
+    const respuesta = await fetch('/voz', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ texto })
     });
+
+    if (!respuesta.ok) {
+      throw new Error("No se pudo generar la voz.");
+    }
+
+    const blob = await respuesta.blob();
+    const audioURL = URL.createObjectURL(blob);
+
+    audioActual = new Audio(audioURL);
+    audioActual.play();
+
+  } catch (error) {
+    console.error(error);
+    agregarMensaje('<strong>Botsito 🧑‍🤖:</strong> ⚠️ No pude reproducir la voz IA.', 'botsito');
+  }
+}
+
+function detenerVoz() {
+  if (audioActual) {
+    audioActual.pause();
+    audioActual.currentTime = 0;
+    audioActual = null;
+  }
+
+  speechSynthesis.cancel();
+}
+
+function escucharVoz() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  if (!SpeechRecognition) {
+    alert("Tu navegador no soporta reconocimiento de voz. Usá Google Chrome.");
+    return;
+  }
+
+  const reconocimiento = new SpeechRecognition();
+
+  reconocimiento.lang = "es-PY";
+  reconocimiento.continuous = false;
+  reconocimiento.interimResults = false;
+
+  reconocimiento.start();
+
+  reconocimiento.onstart = function () {
+    agregarMensaje("<strong>Botsito 🧑‍🤖:</strong> 🎙️ Te estoy escuchando...", "botsito");
+  };
+
+  reconocimiento.onresult = function (event) {
+    const texto = event.results[0][0].transcript;
+    document.getElementById("pregunta").value = texto;
+    enviarPregunta();
+  };
+
+  reconocimiento.onerror = function (event) {
+    agregarMensaje("<strong>Botsito 🧑‍🤖:</strong> ⚠️ Error al escuchar: " + event.error, "botsito");
+  };
+}
+
+function enviarPregunta() {
+  const pregunta = document.getElementById('pregunta').value.trim();
+
+  if (!pregunta) return;
+
+  agregarMensaje('<strong>Tú:</strong> ' + pregunta, 'usuario');
+  document.getElementById('pregunta').value = "";
+
+  fetch('/preguntar', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ pregunta })
+  })
+  .then(res => res.json())
+  .then(data => {
+    renderBotMessage(data.respuesta);
+    hablarConOpenAI(data.respuesta);
+  })
+  .catch(err => {
+    agregarMensaje('<strong>Botsito 🧑‍🤖:</strong> ⚠️ Error: ' + err.message, 'botsito');
+  });
+}
+
+function subirArchivo() {
+  const archivo = document.getElementById('archivo').files[0];
+
+  if (!archivo) return;
+
+  agregarMensaje('<strong>Botsito 🧑‍🤖:</strong> ⏳ Procesando archivo...', 'botsito');
+
+  const formData = new FormData();
+  formData.append('archivo', archivo);
+
+  fetch('/upload', {
+    method: 'POST',
+    body: formData
+  })
+  .then(res => res.json())
+  .then(respuesta => {
+    if (respuesta.resumen) {
+      const resumenContainer = document.getElementById('resumen-container');
+      resumenContainer.innerHTML = '';
+
+      respuesta.resumen.forEach((parte, index) => {
+        const parteElemento = document.createElement('div');
+        parteElemento.className = 'mensaje botsito';
+        parteElemento.innerHTML = `<strong>Botsito 🧑‍🤖 (Resumen ${index + 1}):</strong><br>${parte}`;
+        resumenContainer.appendChild(parteElemento);
+      });
+    }
+  })
+  .catch(error => {
+    agregarMensaje('<strong>Botsito 🧑‍🤖:</strong> ⚠️ Error al subir archivo: ' + error.message, 'botsito');
+  });
+}
+
+function limpiarChat() {
+  document.getElementById('chat').innerHTML = "";
+  document.getElementById('resumen-container').innerHTML = "";
+  detenerVoz();
+}
+
+const inputPregunta = document.getElementById('pregunta');
+
+inputPregunta.addEventListener('keydown', function (e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    enviarPregunta();
+  }
+});
+    
   </script>
 </body>
 </html>

@@ -3,20 +3,24 @@ import requests
 import os
 import PyPDF2
 import docx
+import tempfile
+from openai import OpenAI
 
 app = Flask(__name__)
 
-# ===== OpenAI =====
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-MODEL_OPENAI = "gpt-5"  # Modelo de Open AI a usar
+MODEL_OPENAI = "gpt-4o"
+TTS_MODEL = "gpt-4o-mini-tts"
+TTS_VOICE = "nova"
+
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
-@app.route("/") # Página principal
-def index():  
+@app.route("/")
+def index():
     resp = make_response(send_file(os.path.join(BASE_DIR, "index.html")))
-    # (solo para ver cambios al instante; no altera la lógica)
     resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     resp.headers["Pragma"] = "no-cache"
     resp.headers["Expires"] = "0"
@@ -33,16 +37,50 @@ def sitemap_map():
     return send_file(os.path.join(BASE_DIR, "sitemap.xml"), mimetype="application/xml")
 
 
-@app.route("/preguntar", methods=["POST"]) # Endpoint para recibir preguntas y devolver respuestas 
+@app.route("/preguntar", methods=["POST"])
 def ask():
     try:
         data = request.get_json()
         user_msg = (data or {}).get("pregunta", "")
+
         from bot_core import responder_pregunta
         bot_reply = responder_pregunta(user_msg)
+
         return jsonify({"respuesta": bot_reply})
+
     except Exception as e:
         return jsonify({"respuesta": f"⚠️ Error al procesar la pregunta: {str(e)}"}), 500
+
+
+@app.route("/voz", methods=["POST"])
+def voz():
+    try:
+        data = request.get_json()
+        texto = (data or {}).get("texto", "").strip()
+
+        if not texto:
+            return jsonify({"error": "No se recibió texto para convertir en voz."}), 400
+
+        speech = client.audio.speech.create(
+            model=TTS_MODEL,
+            voice=TTS_VOICE,
+            input=texto,
+            instructions="Habla en español latino, con voz natural, clara, amable y expresiva. Ritmo normal, como un asistente de voz inteligente."
+        )
+
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
+        temp_file.write(speech.content)
+        temp_file.close()
+
+        return send_file(
+            temp_file.name,
+            mimetype="audio/mpeg",
+            as_attachment=False,
+            download_name="botsito_voz.mp3"
+        )
+
+    except Exception as e:
+        return jsonify({"error": f"Error al generar voz: {str(e)}"}), 500
 
 
 @app.route("/upload", methods=["POST"])
@@ -55,30 +93,34 @@ def upload():
         nombre = archivo.filename or ""
         extension = nombre.rsplit('.', 1)[-1].lower() if '.' in nombre else ""
 
-        # Leer contenido según tipo (misma lógica)
         texto = ""
+
         if extension == "pdf":
             archivo.stream.seek(0)
             reader = PyPDF2.PdfReader(archivo.stream)
             texto = " ".join((page.extract_text() or "") for page in reader.pages)
+
         elif extension == "txt":
             archivo.stream.seek(0)
             texto = archivo.read().decode("utf-8", errors="ignore")
+
         elif extension == "docx":
             archivo.stream.seek(0)
             doc = docx.Document(archivo)
             texto = " ".join(p.text for p in doc.paragraphs)
+
         else:
             return jsonify({"resumen": ["❌ Formato no soportado. Usa PDF, DOCX o TXT."]})
 
         texto = (texto or "").strip()
+
         if not texto:
             return jsonify({"resumen": ["⚠️ El archivo no contiene texto legible."]})
 
-        # Partes de 1500 caracteres (igual que antes)
         partes = [texto[i:i + 500] for i in range(0, len(texto), 500)] or [""]
 
         partes_resumen = []
+
         for parte in partes:
             resumen = resumir_con_modelo(parte)
             partes_resumen.append(resumen)
@@ -90,7 +132,6 @@ def upload():
 
 
 def resumir_con_modelo(texto):
-    """Llama al endpoint oficial de OpenAI (chat.completions)."""
     try:
         response = requests.post(
             "https://api.openai.com/v1/chat/completions",
@@ -104,7 +145,7 @@ def resumir_con_modelo(texto):
                     {"role": "user", "content": f"Resume este texto en español:\n{texto}"}
                 ]
             },
-            timeout=(15, 180)  # conexión, lectura (seguro ante respuestas lentas)
+            timeout=(15, 180)
         )
 
         if response.status_code != 200:
