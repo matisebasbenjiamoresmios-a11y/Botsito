@@ -6,15 +6,15 @@ import docx
 
 app = Flask(__name__)
 
-# ===== OpenAI (antes: OpenRouter) =====
+# ===== OpenAI =====
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-MODEL_OPENAI = "gpt-4o"  # puedes cambiar a "gpt-4o" si tienes acceso
+MODEL_OPENAI = "gpt-5"  # Modelo de Open AI a usar
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
-@app.route("/")
-def index():
+@app.route("/") # Página principal
+def index():  
     resp = make_response(send_file(os.path.join(BASE_DIR, "index.html")))
     # (solo para ver cambios al instante; no altera la lógica)
     resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
@@ -33,7 +33,7 @@ def sitemap_map():
     return send_file(os.path.join(BASE_DIR, "sitemap.xml"), mimetype="application/xml")
 
 
-@app.route("/preguntar", methods=["POST"])
+@app.route("/preguntar", methods=["POST"]) # Endpoint para recibir preguntas y devolver respuestas 
 def ask():
     try:
         data = request.get_json()
