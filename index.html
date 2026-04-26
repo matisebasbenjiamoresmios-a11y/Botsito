@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Baifo IA</title>
+  <link rel="icon" href="/favicon.ico" />
 
   <style>
     :root{
@@ -18,201 +19,475 @@
       --shadow:0 10px 30px rgba(0,0,0,.35);
     }
 
+    html,body{height:100%}
+    *{box-sizing:border-box}
+
     body{
       margin:0;
       background:var(--bg);
       color:var(--text);
-      font-family:system-ui;
+      font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
     }
 
+    .wrap{
+      min-height:100%;
+      display:grid;
+      grid-template-rows:auto 1fr auto;
+    }
+
+    header{
+      position:sticky;
+      top:0;
+      z-index:20;
+      background:linear-gradient(180deg,rgba(0,0,0,.25),transparent);
+      backdrop-filter:blur(6px);
+    }
+
+    .topbar{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      padding:16px 20px;
+    }
+
+    .logo{
+      width:36px;
+      height:36px;
+      border-radius:12px;
+      background:linear-gradient(135deg,var(--accent),var(--accent-2));
+      display:grid;
+      place-items:center;
+      color:#06131d;
+      font-weight:900;
+    }
+
+    .brand{font-weight:700}
+
+    .brand small{
+      display:block;
+      color:var(--muted);
+      font-weight:400;
+    }
+
+    main{padding:18px}
+
     .container{
-      max-width:900px;
-      margin:auto;
-      padding:20px;
+      max-width:980px;
+      margin:0 auto;
+      display:grid;
+      gap:16px;
+    }
+
+    .panel{
+      background:var(--panel);
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+    }
+
+    .chat-area{
+      display:grid;
+      grid-template-rows:1fr auto;
     }
 
     #chat{
-      max-height:60vh;
+      padding:18px;
+      max-height:55vh;
       overflow:auto;
-      margin-bottom:15px;
+      scroll-behavior:smooth;
     }
 
     .mensaje{
-      padding:10px;
+      background:linear-gradient(180deg,rgba(255,255,255,.03),transparent);
+      border:1px solid var(--border);
+      border-radius:14px;
+      padding:10px 12px;
       margin-bottom:10px;
-      border-radius:12px;
-      background:#1a2230;
     }
 
-    .usuario{background:#24415a;}
-    .botsito{background:#1a2d22;}
+    .usuario{
+      background:linear-gradient(135deg,rgba(76,201,240,.15),rgba(58,134,255,.12));
+    }
+
+    .botsito{
+      background:linear-gradient(180deg,rgba(255,255,255,.04),transparent);
+    }
+
+    .composer{
+      display:grid;
+      gap:10px;
+      padding:12px;
+      border-top:1px solid var(--border);
+    }
+
+    .row{
+      display:flex;
+      gap:8px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
 
     button{
-      padding:10px;
-      border-radius:10px;
-      border:none;
-      margin-right:5px;
+      appearance:none;
+      border:1px solid var(--border);
+      background:var(--panel);
+      color:var(--text);
+      padding:10px 14px;
+      border-radius:12px;
       cursor:pointer;
     }
 
-    .on{background:#22c55e;}
-    .off{background:#ef4444;}
+    button:hover{
+      transform:translateY(-1px);
+      box-shadow:var(--shadow);
+    }
+
+    .on{
+      background:linear-gradient(135deg,#2dd4bf,#22c55e);
+      border-color:transparent;
+      color:#04151f;
+      font-weight:700;
+    }
+
+    .off{
+      background:linear-gradient(135deg,#ff4d6d,#ff8fa3);
+      border-color:transparent;
+      color:white;
+      font-weight:700;
+    }
+
+    #estado{
+      color:var(--muted);
+      font-size:14px;
+    }
+
+    #resumen-container{padding:12px}
+
+    footer{
+      color:var(--muted);
+      text-align:center;
+      padding:14px;
+    }
+
+    @media (max-width:720px){
+      #chat{max-height:50vh}
+    }
   </style>
 </head>
 
 <body>
-<div class="container">
+  <div class="wrap">
+    <header>
+      <div class="topbar">
+        <div class="logo">B</div>
+        <div class="brand">
+          Baifo IA
+          <small>Asistente escolar con voz</small>
+        </div>
+      </div>
+    </header>
 
-  <div id="chat"></div>
+    <main>
+      <div class="container">
+        <section class="panel chat-area">
+          <div id="chat"></div>
 
-  <button class="on" onclick="activarModoBaifo()">Encender</button>
-  <button class="off" onclick="detenerModoBaifo()">Apagar</button>
+          <div class="composer">
+            <div class="row">
+              <button class="on" onclick="activarModoBaifo()">🟢 Encender Baifo</button>
+              <button class="off" onclick="detenerModoBaifo()">🔴 Apagar Baifo</button>
+              <button onclick="limpiarChat()">🧹 Limpiar pantalla</button>
+              <span id="estado">Baifo está apagado.</span>
+            </div>
 
-</div>
+            <div class="row">
+              <input type="file" id="archivo" style="display:none" onchange="mostrarNombreArchivo()" />
+              <button type="button" onclick="document.getElementById('archivo').click()">Agregar archivo 📂</button>
+              <button onclick="subirArchivo()">Subir archivo</button>
+              <small id="nombre-archivo" style="color:var(--muted);margin-left:8px"></small>
+            </div>
+          </div>
+        </section>
 
-<script>
-let mensajeEncendidoMostrado = false;
-let audioActual = null;
-let modoBaifoActivo = false;
-let reconocimientoBaifo = null;
-let esperandoPregunta = false;
-let baifoHablando = false;
+        <section class="panel" id="resumen-container"></section>
+      </div>
+    </main>
 
-function agregarMensaje(texto, clase=''){
-  const chat=document.getElementById('chat');
-  const div=document.createElement('div');
-  div.className='mensaje '+clase;
-  div.innerHTML=texto;
-  chat.appendChild(div);
-  chat.scrollTop=chat.scrollHeight;
-}
+    <footer>© <span id="year"></span> Baifo · 2do Ica</footer>
+  </div>
 
-async function hablarConOpenAI(texto){
-  try{
-    baifoHablando=true;
+  <script>
+    document.getElementById('year').textContent = new Date().getFullYear();
 
-    const res=await fetch('/voz',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({texto})
-    });
+    let mensajeEncendidoMostrado = false;
+    let audioActual = null;
+    let modoBaifoActivo = false;
+    let reconocimientoBaifo = null;
+    let esperandoPregunta = false;
+    let baifoHablando = false;
 
-    const blob=await res.blob();
-    const url=URL.createObjectURL(blob);
-
-    audioActual=new Audio(url);
-
-    audioActual.onended=()=>{baifoHablando=false};
-
-    audioActual.play();
-
-  }catch(e){
-    baifoHablando=false;
-    console.log(e);
-  }
-}
-
-function activarModoBaifo(){
-  const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
-
-  if(!SpeechRecognition){
-    alert("Usá Chrome");
-    return;
-  }
-
-  if(modoBaifoActivo) return;
-
-  modoBaifoActivo=true;
-
-  reconocimientoBaifo=new SpeechRecognition();
-  reconocimientoBaifo.lang="es-ES";
-  reconocimientoBaifo.continuous=true;
-  reconocimientoBaifo.interimResults=true;
-
-  reconocimientoBaifo.onstart=()=>{
-    if(!mensajeEncendidoMostrado){
-      agregarMensaje("<b>Baifo:</b> Estoy listo. Decí Hey Baifo","botsito");
-      mensajeEncendidoMostrado=true;
+    function cambiarEstado(texto) {
+      document.getElementById("estado").textContent = texto;
     }
-  };
 
-  reconocimientoBaifo.onresult=(event)=>{
-    if(baifoHablando) return;
+    function mostrarNombreArchivo() {
+      const archivo = document.getElementById('archivo').files[0];
+      const label = document.getElementById('nombre-archivo');
+      label.textContent = archivo ? archivo.name : "";
+    }
 
-    const texto=event.results[event.results.length-1][0].transcript.toLowerCase();
+    function agregarMensaje(texto, clase = '') {
+      const chat = document.getElementById('chat');
+      const mensaje = document.createElement('div');
+      mensaje.className = 'mensaje ' + clase;
+      mensaje.innerHTML = texto;
+      chat.appendChild(mensaje);
+      chat.scrollTop = chat.scrollHeight;
+    }
 
-    if(!esperandoPregunta){
-      if(
-        texto.includes("hey baifo")||
-        texto.includes("baifo")||
-        texto.includes("bifo")||
-        texto.includes("vaifo")
-      ){
-        esperandoPregunta=true;
-        agregarMensaje("<b>Baifo:</b> Te escucho","botsito");
-        hablarConOpenAI("Te escucho");
+    function renderBotMessage(text) {
+      agregarMensaje('<strong>Baifo 🤖:</strong> ' + text, 'botsito');
+    }
+
+    async function hablarConOpenAI(texto) {
+      try {
+        if (!texto) return;
+
+        baifoHablando = true;
+
+        if (audioActual) {
+          audioActual.pause();
+          audioActual = null;
+        }
+
+        const respuesta = await fetch('/voz', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ texto })
+        });
+
+        if (!respuesta.ok) {
+          throw new Error("No se pudo generar la voz.");
+        }
+
+        const blob = await respuesta.blob();
+        const audioURL = URL.createObjectURL(blob);
+
+        audioActual = new Audio(audioURL);
+
+        audioActual.onended = function () {
+          baifoHablando = false;
+        };
+
+        audioActual.onerror = function () {
+          baifoHablando = false;
+        };
+
+        await audioActual.play();
+
+      } catch (error) {
+        baifoHablando = false;
+        console.error(error);
+        agregarMensaje('<strong>Baifo 🤖:</strong> ⚠️ No pude reproducir la voz IA.', 'botsito');
       }
-      return;
     }
 
-    esperandoPregunta=false;
+    function detenerVoz() {
+      baifoHablando = false;
 
-    const pregunta=texto
-      .replace("hey baifo","")
-      .replace("baifo","")
-      .replace("bifo","")
-      .replace("vaifo","")
-      .replace("Hola Baifo","")
-      .trim();
+      if (audioActual) {
+        audioActual.pause();
+        audioActual.currentTime = 0;
+        audioActual = null;
+      }
 
-    if(pregunta.length>2){
-      enviarPregunta(pregunta);
+      speechSynthesis.cancel();
     }
-  };
 
-  reconocimientoBaifo.onend=()=>{
-    if(modoBaifoActivo){
-      setTimeout(()=>reconocimientoBaifo.start(),500);
+    function activarModoBaifo() {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+      if (!SpeechRecognition) {
+        alert("Tu navegador no soporta reconocimiento de voz. Usá Google Chrome.");
+        return;
+      }
+
+      if (modoBaifoActivo) {
+        agregarMensaje("<strong>Baifo 🤖:</strong> Ya estoy encendido. Decí <b>Hey Baifo</b>.", "botsito");
+        return;
+      }
+
+      modoBaifoActivo = true;
+      esperandoPregunta = false;
+
+      reconocimientoBaifo = new SpeechRecognition();
+      reconocimientoBaifo.lang = "es-PY";
+      reconocimientoBaifo.continuous = true;
+      reconocimientoBaifo.interimResults = false;
+
+      reconocimientoBaifo.onstart = function () {
+        cambiarEstado("Baifo está escuchando.");
+
+          if (!mensajeEncendidoMostrado) {
+            agregarMensaje("<strong>Baifo 🤖:</strong> Estoy encendido. Decí <b>Hey Baifo</b> para hablar conmigo.", "botsito");
+          mensajeEncendidoMostrado = true;
+        }
+      };
+
+      reconocimientoBaifo.onresult = function (event) {
+        if (baifoHablando) return;
+
+        const resultado = event.results[event.results.length - 1][0].transcript.toLowerCase().trim();
+
+        console.log("Escuchado:", resultado);
+
+        if (!esperandoPregunta) {
+          if (
+            resultado.includes("hey baifo") ||
+            resultado.includes("ey baifo") ||
+            resultado.includes("hey byfo") ||
+            resultado.includes("hey vaifo") ||
+            resultado.includes("baifo")
+          ) {
+            esperandoPregunta = true;
+            cambiarEstado("Baifo activado. Ahora hacé tu pregunta.");
+            agregarMensaje("<strong>Baifo 🤖:</strong> Te escucho. Hacé tu pregunta.", "botsito");
+            hablarConOpenAI("Te escucho. Hacé tu pregunta.");
+          }
+
+          return;
+        }
+
+        esperandoPregunta = false;
+        cambiarEstado("Baifo está escuchando. Decí: Hey Baifo.");
+
+        const pregunta = resultado
+          .replace("hey baifo", "")
+          .replace("ey baifo", "")
+          .replace("hey byfo", "")
+          .replace("hey vaifo", "")
+          .replace("baifo", "")
+          .trim();
+
+        if (pregunta.length > 2) {
+          enviarPregunta(pregunta);
+        } else {
+          agregarMensaje("<strong>Baifo 🤖:</strong> No escuché bien la pregunta. Decí de nuevo <b>Hey Baifo</b> y luego tu pregunta.", "botsito");
+          hablarConOpenAI("No escuché bien la pregunta. Decí de nuevo Hey Baifo y luego tu pregunta.");
+        }
+      };
+
+      reconocimientoBaifo.onerror = function (event) {
+        console.log("Error reconocimiento:", event.error);
+
+        if (event.error === "not-allowed") {
+          cambiarEstado("Permiso de micrófono bloqueado.");
+          agregarMensaje("<strong>Baifo 🤖:</strong> ⚠️ El micrófono está bloqueado. Permití el micrófono en Chrome.", "botsito");
+          modoBaifoActivo = false;
+          return;
+        }
+
+        if (modoBaifoActivo) {
+          setTimeout(() => {
+            try {
+              reconocimientoBaifo.start();
+            } catch (e) {}
+          }, 1000);
+        }
+      };
+
+      reconocimientoBaifo.onend = function () {
+        if (modoBaifoActivo) {
+          setTimeout(() => {
+            try {
+              reconocimientoBaifo.start();
+            } catch (e) {}
+          }, 1000);
+        }
+      };
+
+      try {
+        reconocimientoBaifo.start();
+      } catch (e) {
+        console.log(e);
+      }
     }
-  };
 
-  reconocimientoBaifo.start();
-}
+    function detenerModoBaifo() {
+      modoBaifoActivo = false;
+      esperandoPregunta = false;
+      mensajeEncendidoMostrado = false;
 
-function detenerModoBaifo(){
-  modoBaifoActivo=false;
-  esperandoPregunta=false;
-  mensajeEncendidoMostrado=false;
+      if (reconocimientoBaifo) {
+        reconocimientoBaifo.stop();
+        reconocimientoBaifo = null;
+      }
 
-  if(reconocimientoBaifo){
-    reconocimientoBaifo.stop();
-  }
+      detenerVoz();
+      cambiarEstado("Baifo está apagado.");
+      agregarMensaje("<strong>Baifo 🤖:</strong> Modo escucha detenido.", "botsito");
+    }
 
-  if(audioActual){
-    audioActual.pause();
-  }
+    function enviarPregunta(pregunta) {
+      pregunta = (pregunta || "").trim();
 
-  agregarMensaje("<b>Baifo:</b> Apagado","botsito");
-}
+      if (!pregunta) return;
 
-function enviarPregunta(pregunta){
-  agregarMensaje("<b>Tú:</b> "+pregunta,"usuario");
+      agregarMensaje('<strong>Tú:</strong> ' + pregunta, 'usuario');
 
-  fetch('/preguntar',{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({pregunta})
-  })
-  .then(res=>res.json())
-  .then(data=>{
-    agregarMensaje("<b>Baifo:</b> "+data.respuesta,"botsito");
+      fetch('/preguntar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pregunta })
+      })
+      .then(res => res.json())
+      .then(data => {
+        renderBotMessage(data.respuesta);
+        hablarConOpenAI(data.respuesta);
+      })
+      .catch(err => {
+        agregarMensaje('<strong>Baifo 🤖:</strong> ⚠️ Error: ' + err.message, 'botsito');
+      });
+    }
 
-    setTimeout(()=>{
-      hablarConOpenAI(data.respuesta);
-    },30);
-  });
-}
-</script>
+    function subirArchivo() {
+      const archivo = document.getElementById('archivo').files[0];
 
+      if (!archivo) return;
+
+      agregarMensaje('<strong>Baifo 🤖:</strong> ⏳ Procesando archivo...', 'botsito');
+
+      const formData = new FormData();
+      formData.append('archivo', archivo);
+
+      fetch('/upload', {
+        method: 'POST',
+        body: formData
+      })
+      .then(res => res.json())
+      .then(respuesta => {
+        if (respuesta.resumen) {
+          const resumenContainer = document.getElementById('resumen-container');
+          resumenContainer.innerHTML = '';
+
+          respuesta.resumen.forEach((parte, index) => {
+            const parteElemento = document.createElement('div');
+            parteElemento.className = 'mensaje botsito';
+            parteElemento.innerHTML = `<strong>Baifo 🤖 (Resumen ${index + 1}):</strong><br>${parte}`;
+            resumenContainer.appendChild(parteElemento);
+          });
+        }
+      })
+      .catch(error => {
+        agregarMensaje('<strong>Baifo 🤖:</strong> ⚠️ Error al subir archivo: ' + error.message, 'botsito');
+      });
+    }
+
+    function limpiarChat() {
+      document.getElementById('chat').innerHTML = "";
+      document.getElementById('resumen-container').innerHTML = "";
+      detenerVoz();
+    }
+  </script>
 </body>
 </html>
