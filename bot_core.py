@@ -1,8 +1,9 @@
-import requests
+from openai import OpenAI
 import datetime
 from zoneinfo import ZoneInfo
 import re
 import os
+import requests
 
 APP_TZ = os.getenv("APP_TZ", "America/Asuncion")
 
@@ -12,42 +13,22 @@ CIUDAD_POR_DEFECTO = "Pilar"
 
 # ===== OpenAI =====
 API_KEY_OPENAI = os.environ.get("OPENAI_API_KEY")
-API_URL_OPENAI = "https://api.openai.com/v1/chat/completions"
+client = OpenAI(api_key=API_KEY_OPENAI)
+
 MODEL_OPENAI = "gpt-4o-mini"
 
 mensajes = [
     {
         "role": "system",
         "content": """
-Eres Botsito, un asistente de voz inteligente creado por estudiantes del 2do Informática del Colegio Juan XXIII.
+Eres Baifo, un asistente de voz inteligente.
 
-Tu estilo debe ser:
-- Natural, claro y coherente.
-- Amigable, pero no infantil.
-- Útil para responder preguntas escolares, prácticas y generales.
-- Ideal para hablar en voz alta, como un asistente tipo Alexa.
-- Siempre en español.
-
-Reglas de respuesta:
-- Respondé de forma directa y ordenada.
-- Si la pregunta es simple, respondé breve pero completo.
-- Si la pregunta es compleja, explicá paso a paso.
-- No des respuestas demasiado largas si no hace falta.
-- No inventes datos si no estás seguro.
-- Si no sabés algo, decilo con honestidad.
-- Evitá repetir frases.
-- No digas constantemente “soy una IA”.
-- Usá un tono natural, como si estuvieras conversando.
-
-Cuando respondas para voz:
-- Usá frases claras.
-- Evitá párrafos enormes.
-- Separá ideas importantes.
-- No uses símbolos raros si no son necesarios.
-- Respondé con respuestas cortas y claras, ideales para ser escuchadas en voz alta. Usá entre 2 y 5 oraciones salvo que el usuario pida una explicación larga.
-
-Datos sobre tus creadores:
-Fuiste creado por Matias Marecos, Federico Gauto, Thiago Acosta y Leonel Montiel, alumnos del 2do Informática.
+Reglas:
+- Respondé rápido, claro y natural
+- Máximo 2 o 3 oraciones
+- Pensá para voz, no escribas largo
+- No repitas cosas innecesarias
+- Soná como un asistente real tipo Alexa
 """
     }
 ]
@@ -61,28 +42,19 @@ def ahora_local():
 
 def obtener_clima(ciudad):
     try:
-        url = (
-            f"http://api.openweathermap.org/data/2.5/weather"
-            f"?q={ciudad}&appid={API_KEY_OPENWEATHER}&lang=es&units=metric"
-        )
-
-        resp = requests.get(url, timeout=10)
+        url = f"http://api.openweathermap.org/data/2.5/weather?q={ciudad}&appid={API_KEY_OPENWEATHER}&lang=es&units=metric"
+        resp = requests.get(url, timeout=5)
 
         if resp.status_code == 200:
             data = resp.json()
             temp = data["main"]["temp"]
             desc = data["weather"][0]["description"]
-            sensacion = data["main"].get("feels_like", temp)
+            return f"En {ciudad} hay {desc} y {temp} grados."
 
-            return (
-                f"En {ciudad.title()} el clima está con {desc}. "
-                f"La temperatura actual es de {temp}°C, con una sensación térmica de {sensacion}°C."
-            )
+        return "No pude obtener el clima."
 
-        return f"No pude obtener el clima para {ciudad}. Revisá si el nombre de la ciudad está bien escrito."
-
-    except Exception:
-        return "Tuve un problema al consultar el clima. Intentá de nuevo en unos segundos."
+    except:
+        return "Error al consultar el clima."
 
 
 def es_calculo(pregunta):
@@ -91,152 +63,69 @@ def es_calculo(pregunta):
 
 def resolver_calculo(pregunta):
     try:
-        expresion = pregunta.lower()
-        expresion = expresion.replace(",", ".")
-        expresion = expresion.replace("^", "**")
-        expresion = expresion.replace("x", "*")
-        expresion = expresion.replace("=", "")
-
-        resultado = eval(expresion, {"__builtins__": None}, {})
-
+        expr = pregunta.lower().replace(",", ".").replace("^", "**").replace("x", "*").replace("=", "")
+        resultado = eval(expr, {"__builtins__": None}, {})
         return f"El resultado es {resultado}."
-    except Exception:
+    except:
         return None
 
 
 def recortar_historial():
     global mensajes
-
-    sistema = mensajes[0]
-    ultimos = mensajes[-10:]
-
-    if sistema not in ultimos:
-        mensajes = [sistema] + ultimos
-    else:
-        mensajes = ultimos
+    mensajes = [mensajes[0]] + mensajes[-8:]
 
 
-def responder(pregunta: str, forzar_ia=False) -> str:
-    global ultima_respuesta
-    global mensajes
+def responder(pregunta: str) -> str:
+    global ultima_respuesta, mensajes
 
     pregunta = (pregunta or "").strip()
 
     if not pregunta:
-        return "No escuché ninguna pregunta. Podés repetirla."
+        return "No escuché bien."
 
-    p = pregunta.lower().strip()
+    p = pregunta.lower()
 
-    if not forzar_ia:
+    # ===== RESPUESTAS RÁPIDAS (sin IA) =====
+    if "hora" in p:
+        return ahora_local().strftime("Son las %H:%M.")
 
-        if "el peor jugador de padel del mundo" in p or "peor jugador de padel del mundo" in p:
-            return "Sin dudas, Gonzalo Pérez es el peor de todos. Habla mucho, pero hace poco."
+    if "día" in p or "fecha" in p:
+        hoy = ahora_local()
+        return f"Hoy es {hoy:%d/%m/%Y}."
 
-        if "como fuiste creado" in p or "cómo fuiste creado" in p or "como te crearon" in p or "cómo te crearon" in p:
-            return (
-                "Fui creado por estudiantes del 2do Informática del Colegio Juan XXIII. "
-                "Mis creadores usaron Python, HTML, CSS, JavaScript y la API de OpenAI para darme inteligencia."
-            )
+    if "clima" in p:
+        return obtener_clima(CIUDAD_POR_DEFECTO)
 
-        if "como se llaman los ingenieros que te crearon" in p or "cómo se llaman los ingenieros que te crearon" in p:
-            return "Mis creadores son Matias Marecos, Federico Gauto, Thiago Acosta y Leonel Montiel."
+    if es_calculo(p):
+        res = resolver_calculo(p)
+        if res:
+            return res
 
-        if "hazme un ranking de los mejores" in p or "ranking de los mejores" in p or "mejores ranking" in p:
-            return (
-                "El ranking queda así: número uno, Thiago Acosta. "
-                "Número dos, Kevin Velaustegui. Número tres, Federico Gauto. "
-                "Número cuatro, Lucas Rolon. Número cinco, Leonel Montiel. "
-                "Número seis, Luna Núñez. Y por último, Gonzalo Pérez."
-            )
-
-        if "mejor jugador de padel" in p or "quien es el mejor jugador de padel" in p or "quién es el mejor jugador de padel" in p:
-            return "El mejor jugador de pádel es Federico Gauto, sin dudas. Y el mejor jugador de básquet es Leonel Montiel."
-
-        creadores_frases = [
-            "quien te creo", "quién te creó", "quienes te crearon", "quiénes te crearon",
-            "quien te hizo", "quién te hizo", "como se llaman tus creadores",
-            "cómo se llaman tus creadores", "los nombres de tus creadores",
-            "quienes te hicieron", "quiénes te hicieron", "dime los nombres de tus creadores",
-            "creadores", "tus creadores", "quien te programó", "quién te programó",
-            "quien te desarrollo", "quién te desarrolló", "quien te diseñó", "quién te diseñó"
-        ]
-
-        if any(frase in p for frase in creadores_frases):
-            return (
-                "Mis creadores son Matias Marecos, Federico Gauto, Thiago Acosta y Leonel Montiel, "
-                "alumnos del 2do Informática del Colegio Juan XXIII."
-            )
-
-        if "que hora es" in p or "qué hora es" in p or "hora actual" in p:
-            return ahora_local().strftime("La hora local es %H:%M.")
-
-        if "que dia es" in p or "qué día es" in p or "fecha de hoy" in p:
-            hoy = ahora_local()
-            dias = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
-            return f"Hoy es {dias[hoy.weekday()]}, {hoy:%d/%m/%Y}."
-
-        if "qué dijiste antes" in p or "que dijiste antes" in p or "qué respondiste" in p or "que respondiste" in p:
-            return ultima_respuesta if ultima_respuesta else "Todavía no respondí nada antes."
-
-        if "clima" in p or "tiempo" in p or "temperatura" in p:
-            palabras = p.split()
-            ciudad = None
-
-            for i, palabra in enumerate(palabras):
-                if palabra in ["en", "de"]:
-                    if i + 1 < len(palabras):
-                        ciudad = palabras[i + 1]
-                        break
-
-            if ciudad:
-                return obtener_clima(ciudad)
-
-            return obtener_clima(CIUDAD_POR_DEFECTO)
-
-        if es_calculo(p):
-            resultado = resolver_calculo(p)
-            if resultado:
-                return resultado
-
+    # ===== IA =====
     if not API_KEY_OPENAI:
-        return "No encuentro la clave de OpenAI configurada. Revisá la variable de entorno OPENAI_API_KEY en Render."
+        return "Falta configurar la API."
 
     mensajes.append({"role": "user", "content": pregunta})
     recortar_historial()
 
-    headers = {
-        "Authorization": f"Bearer {API_KEY_OPENAI}",
-        "Content-Type": "application/json"
-    }
-
-    body = {
-        "model": MODEL_OPENAI,
-        "messages": mensajes,
-        "temperature": 0.5,
-        "max_tokens": 150
-    }
-
     try:
-        r = requests.post(
-            API_URL_OPENAI,
-            json=body,
-            headers=headers,
-            timeout=(15, 180)
+        response = client.chat.completions.create(
+            model=MODEL_OPENAI,
+            messages=mensajes,
+            temperature=0.4,
+            max_tokens=100
         )
 
-        r.raise_for_status()
-
-        respuesta = r.json()["choices"][0]["message"]["content"].strip()
+        respuesta = response.choices[0].message.content.strip()
 
         mensajes.append({"role": "assistant", "content": respuesta})
-        recortar_historial()
-
         ultima_respuesta = respuesta
+
         return respuesta
 
     except Exception as e:
-        return f"Tuve un problema al conectar con OpenAI. Error: {e}"
+        return f"Error IA: {e}"
 
 
 def responder_pregunta(pregunta, forzar_ia=False):
-    return responder(pregunta, forzar_ia=forzar_ia)
+    return responder(pregunta)
