@@ -9,9 +9,9 @@ from openai import OpenAI
 app = Flask(__name__)
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-MODEL_OPENAI = "gpt-4o"
-TTS_MODEL = "gpt-4o-mini-tts"
-TTS_VOICE = "nova"
+MODEL_OPENAI = "gpt-5.5"
+TTS_MODEL = "gpt-5.5-tts-1"
+TTS_VOICE = "alloy"
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
