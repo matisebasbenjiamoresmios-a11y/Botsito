@@ -13,7 +13,7 @@ CIUDAD_POR_DEFECTO = "Pilar"
 # ===== OpenAI =====
 API_KEY_OPENAI = os.environ.get("OPENAI_API_KEY")
 API_URL_OPENAI = "https://api.openai.com/v1/chat/completions"
-MODEL_OPENAI = "gpt-5.5"
+MODEL_OPENAI = "gpt-4o-mini"
 
 mensajes = [
     {
