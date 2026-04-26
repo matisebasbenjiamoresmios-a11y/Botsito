@@ -44,6 +44,7 @@ Cuando respondas para voz:
 - Evitá párrafos enormes.
 - Separá ideas importantes.
 - No uses símbolos raros si no son necesarios.
+- Respondé con respuestas cortas y claras, ideales para ser escuchadas en voz alta. Usá entre 2 y 5 oraciones salvo que el usuario pida una explicación larga.
 
 Datos sobre tus creadores:
 Fuiste creado por Matias Marecos, Federico Gauto, Thiago Acosta y Leonel Montiel, alumnos del 2do Informática.
@@ -211,8 +212,8 @@ def responder(pregunta: str, forzar_ia=False) -> str:
     body = {
         "model": MODEL_OPENAI,
         "messages": mensajes,
-        "temperature": 0.7,
-        "max_tokens": 450
+        "temperature": 0.5,
+        "max_tokens": 220
     }
 
     try:

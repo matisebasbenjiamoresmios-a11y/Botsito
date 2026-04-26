@@ -219,6 +219,7 @@
   <script>
     document.getElementById('year').textContent = new Date().getFullYear();
 
+    let mensajeEncendidoMostrado = false;
     let audioActual = null;
     let modoBaifoActivo = false;
     let reconocimientoBaifo = null;
@@ -325,8 +326,12 @@
       reconocimientoBaifo.interimResults = false;
 
       reconocimientoBaifo.onstart = function () {
-        cambiarEstado("Baifo está escuchando. Decí: Hey Baifo.");
-        agregarMensaje("<strong>Baifo 🤖:</strong> Estoy encendido. Decí <b>Hey Baifo</b> para hablar conmigo.", "botsito");
+        cambiarEstado("Baifo está escuchando.");
+
+          if (!mensajeEncendidoMostrado) {
+            agregarMensaje("<strong>Baifo 🤖:</strong> Estoy encendido. Decí <b>Hey Baifo</b> para hablar conmigo.", "botsito");
+          mensajeEncendidoMostrado = true;
+        }
       };
 
       reconocimientoBaifo.onresult = function (event) {
@@ -411,6 +416,7 @@
     function detenerModoBaifo() {
       modoBaifoActivo = false;
       esperandoPregunta = false;
+      mensajeEncendidoMostrado = false;
 
       if (reconocimientoBaifo) {
         reconocimientoBaifo.stop();
