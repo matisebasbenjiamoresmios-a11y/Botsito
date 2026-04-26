@@ -312,34 +312,102 @@ function detenerVoz() {
 }
 
 function escucharVoz() {
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let modoBaifoActivo = false;
+  let reconocimientoBaifo = null;
+  let esperandoPregunta = false;
 
-  if (!SpeechRecognition) {
-    alert("Tu navegador no soporta reconocimiento de voz. Usá Google Chrome.");
-    return;
+  function activarModoBaifo() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+      if (!SpeechRecognition) {
+        alert("Tu navegador no soporta reconocimiento de voz. Usá Google Chrome.");
+      return;
   }
 
-  const reconocimiento = new SpeechRecognition();
+  modoBaifoActivo = true;
 
-  reconocimiento.lang = "es-PY";
-  reconocimiento.continuous = false;
-  reconocimiento.interimResults = false;
+  reconocimientoBaifo = new SpeechRecognition();
+  reconocimientoBaifo.lang = "es-PY";
+  reconocimientoBaifo.continuous = true;
+  reconocimientoBaifo.interimResults = false;
 
-  reconocimiento.start();
-
-  reconocimiento.onstart = function () {
-    agregarMensaje("<strong>Botsito 🧑‍🤖:</strong> 🎙️ Te estoy escuchando...", "botsito");
+  reconocimientoBaifo.onstart = function () {
+    agregarMensaje("<strong>Baifo 🤖:</strong> Modo escucha activado. Decí: <b>Hey Baifo</b>", "botsito");
   };
 
-  reconocimiento.onresult = function (event) {
-    const texto = event.results[0][0].transcript;
-    document.getElementById("pregunta").value = texto;
-    enviarPregunta();
+  reconocimientoBaifo.onresult = function (event) {
+    const resultado = event.results[event.results.length - 1][0].transcript.toLowerCase().trim();
+
+    console.log("Escuchado:", resultado);
+
+    if (!esperandoPregunta) {
+      if (
+        resultado.includes("hey baifo") ||
+        resultado.includes("ey baifo") ||
+        resultado.includes("hey byfo") ||
+        resultado.includes("hey vaifo") ||
+        resultado.includes("baifo")
+      ) {
+        esperandoPregunta = true;
+        agregarMensaje("<strong>Baifo 🤖:</strong> Te escucho. Hacé tu pregunta.", "botsito");
+        hablarConOpenAI("Te escucho. Hacé tu pregunta.");
+      }
+    } else {
+      esperandoPregunta = false;
+
+      const pregunta = resultado
+        .replace("hey baifo", "")
+        .replace("ey baifo", "")
+        .replace("hey byfo", "")
+        .replace("hey vaifo", "")
+        .replace("baifo", "")
+        .trim();
+
+      if (pregunta.length > 2) {
+        document.getElementById("pregunta").value = pregunta;
+        enviarPregunta();
+      } else {
+        agregarMensaje("<strong>Baifo 🤖:</strong> No escuché bien la pregunta. Repetila después de decir Hey Baifo.", "botsito");
+      }
+    }
   };
 
-  reconocimiento.onerror = function (event) {
-    agregarMensaje("<strong>Botsito 🧑‍🤖:</strong> ⚠️ Error al escuchar: " + event.error, "botsito");
+  reconocimientoBaifo.onerror = function (event) {
+    console.log("Error reconocimiento:", event.error);
+
+    if (modoBaifoActivo) {
+      setTimeout(() => {
+        try {
+          reconocimientoBaifo.start();
+        } catch (e) {}
+      }, 1000);
+    }
   };
+
+  reconocimientoBaifo.onend = function () {
+    if (modoBaifoActivo) {
+      setTimeout(() => {
+        try {
+          reconocimientoBaifo.start();
+        } catch (e) {}
+      }, 1000);
+    }
+  };
+
+  reconocimientoBaifo.start();
+}
+
+function detenerModoBaifo() {
+  modoBaifoActivo = false;
+  esperandoPregunta = false;
+
+  if (reconocimientoBaifo) {
+    reconocimientoBaifo.stop();
+  }
+
+  detenerVoz();
+  agregarMensaje("<strong>Baifo 🤖:</strong> Modo escucha detenido.", "botsito");
+}
 }
 
 function enviarPregunta() {
