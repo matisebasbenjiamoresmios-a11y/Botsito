@@ -134,7 +134,7 @@ def responder(pregunta: str, forzar_ia=False) -> str:
         "model": MODEL_OPENAI,
         "messages": mensajes,
         "temperature": 0.4,
-        "max_tokens": 90  # 🔥 optimización clave
+        "max_tokens": 150 # 🔥 optimización clave
     }
 
     try:
