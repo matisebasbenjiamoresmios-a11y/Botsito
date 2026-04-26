@@ -1,72 +1,161 @@
-from flask import Flask, request, Response, stream_with_context, send_file
+from flask import Flask, request, jsonify, send_file, make_response
+import requests
 import os
+import PyPDF2
+import docx
+import tempfile
 from openai import OpenAI
 
 app = Flask(__name__)
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-client = OpenAI(api_key=OPENAI_API_KEY)
-
-MODEL = "gpt-4o-mini"
+MODEL_OPENAI = "gpt-4o-mini"
 TTS_MODEL = "gpt-4o-mini-tts"
 TTS_VOICE = "alloy"
+
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 @app.route("/")
 def index():
-    return send_file(os.path.join(BASE_DIR, "index.html"))
+    resp = make_response(send_file(os.path.join(BASE_DIR, "index.html")))
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
+    return resp
 
 
-# 🔥 STREAM DE TEXTO (tipo ChatGPT en vivo)
-@app.route("/stream", methods=["POST"])
-def stream():
-    data = request.get_json()
-    pregunta = data.get("pregunta", "")
-
-    def generar():
-        try:
-            with client.chat.completions.stream(
-                model=MODEL,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "Respondé en español, máximo 2 oraciones, claro y directo."
-                    },
-                    {"role": "user", "content": pregunta}
-                ],
-                temperature=0.4,
-                max_tokens=80
-            ) as stream:
-
-                for event in stream:
-                    if event.type == "content.delta":
-                        yield event.delta
-
-        except Exception as e:
-            yield f"Error: {e}"
-
-    return Response(stream_with_context(generar()), mimetype="text/plain")
+@app.route("/robots.txt")
+def robots_txt():
+    return send_file(os.path.join(BASE_DIR, "robots.txt"), mimetype="text/plain")
 
 
-# 🔊 VOZ (igual pero optimizado)
+@app.route("/sitemap.xml")
+def sitemap_map():
+    return send_file(os.path.join(BASE_DIR, "sitemap.xml"), mimetype="application/xml")
+
+
+@app.route("/preguntar", methods=["POST"])
+def ask():
+    try:
+        data = request.get_json()
+        user_msg = (data or {}).get("pregunta", "")
+
+        from bot_core import responder_pregunta
+        bot_reply = responder_pregunta(user_msg)
+
+        return jsonify({"respuesta": bot_reply})
+
+    except Exception as e:
+        return jsonify({"respuesta": f"⚠️ Error al procesar la pregunta: {str(e)}"}), 500
+
+
 @app.route("/voz", methods=["POST"])
 def voz():
-    data = request.get_json()
-    texto = data.get("texto", "")
+    try:
+        data = request.get_json()
+        texto = (data or {}).get("texto", "").strip()
 
-    speech = client.audio.speech.create(
-        model=TTS_MODEL,
-        voice=TTS_VOICE,
-        input=texto
-    )
+        if not texto:
+            return jsonify({"error": "No se recibió texto para convertir en voz."}), 400
 
-    path = "voz.mp3"
-    with open(path, "wb") as f:
-        f.write(speech.content)
+        speech = client.audio.speech.create(
+            model=TTS_MODEL,
+            voice=TTS_VOICE,
+            input=texto,
+            instructions="Habla en español latino, con voz natural, clara, amable y expresiva. Ritmo normal, como un asistente de voz inteligente."
+        )
 
-    return send_file(path, mimetype="audio/mpeg")
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
+        temp_file.write(speech.content)
+        temp_file.close()
+
+        return send_file(
+            temp_file.name,
+            mimetype="audio/mpeg",
+            as_attachment=False,
+            download_name="botsito_voz.mp3"
+        )
+
+    except Exception as e:
+        return jsonify({"error": f"Error al generar voz: {str(e)}"}), 500
+
+
+@app.route("/upload", methods=["POST"])
+def upload():
+    try:
+        if 'archivo' not in request.files:
+            return jsonify({"resumen": ["⚠️ No se envió ningún archivo."]})
+
+        archivo = request.files['archivo']
+        nombre = archivo.filename or ""
+        extension = nombre.rsplit('.', 1)[-1].lower() if '.' in nombre else ""
+
+        texto = ""
+
+        if extension == "pdf":
+            archivo.stream.seek(0)
+            reader = PyPDF2.PdfReader(archivo.stream)
+            texto = " ".join((page.extract_text() or "") for page in reader.pages)
+
+        elif extension == "txt":
+            archivo.stream.seek(0)
+            texto = archivo.read().decode("utf-8", errors="ignore")
+
+        elif extension == "docx":
+            archivo.stream.seek(0)
+            doc = docx.Document(archivo)
+            texto = " ".join(p.text for p in doc.paragraphs)
+
+        else:
+            return jsonify({"resumen": ["❌ Formato no soportado. Usa PDF, DOCX o TXT."]})
+
+        texto = (texto or "").strip()
+
+        if not texto:
+            return jsonify({"resumen": ["⚠️ El archivo no contiene texto legible."]})
+
+        partes = [texto[i:i + 500] for i in range(0, len(texto), 500)] or [""]
+
+        partes_resumen = []
+
+        for parte in partes:
+            resumen = resumir_con_modelo(parte)
+            partes_resumen.append(resumen)
+
+        return jsonify({"resumen": partes_resumen})
+
+    except Exception as e:
+        return jsonify({"resumen": [f"⚠️ Error al procesar el archivo: {str(e)}"]}), 500
+
+
+def resumir_con_modelo(texto):
+    try:
+        response = requests.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {OPENAI_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": MODEL_OPENAI,
+                "messages": [
+                    {"role": "user", "content": f"Resume este texto en español:\n{texto}"}
+                ]
+            },
+            timeout=(15, 180)
+        )
+
+        if response.status_code != 200:
+            return f"⚠️ Error {response.status_code} - {response.text[:120]}"
+
+        data = response.json()
+        return data['choices'][0]['message']['content']
+
+    except Exception as e:
+        return f"⚠️ Error al resumir: {str(e)}"
 
 
 if __name__ == "__main__":
