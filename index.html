@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+ç<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
@@ -211,8 +211,31 @@ let reconocimientoBaifo;
 let modoBaifoActivo=false;
 let esperandoPregunta=false;
 
+// 🔥 detectar código
+function contieneCodigo(texto){
+  const t = texto.toLowerCase();
+
+  return (
+    t.includes("```") ||
+    t.includes("#include") ||
+    t.includes("void setup") ||
+    t.includes("void loop") ||
+    t.includes("const int") ||
+    t.includes("function") ||
+    t.includes("class ") ||
+    t.includes("def ") ||
+    t.includes("<html") ||
+    t.includes("<script") ||
+    (t.includes("{") && t.includes("}") && t.includes(";"))
+  );
+}
+
 // 🔥 voz instantánea
 function hablarLocal(texto){
+  if(contieneCodigo(texto)){
+    return;
+  }
+
   const u=new SpeechSynthesisUtterance(texto);
   u.lang="es-ES";
   speechSynthesis.speak(u);
@@ -297,7 +320,15 @@ function activarModoBaifo(){
 // 🛑 apagar
 function detenerModoBaifo(){
   modoBaifoActivo=false;
-  if(reconocimientoBaifo) reconocimientoBaifo.stop();
+  esperandoPregunta=false;
+
+  if(reconocimientoBaifo){
+    reconocimientoBaifo.stop();
+  }
+
+  speechSynthesis.cancel();
+
+  document.getElementById("estado").textContent = "Baifo está apagado.";
 }
 
 // limpiar
