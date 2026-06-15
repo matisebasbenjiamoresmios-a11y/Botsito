@@ -42,7 +42,7 @@ def stream():
                     {"role": "user", "content": pregunta}
                 ],
                 stream=True,
-                max_tokens=90
+                max_tokens=300
             )
 
             for chunk in stream:
