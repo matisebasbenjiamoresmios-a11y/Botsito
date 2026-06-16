@@ -204,7 +204,6 @@
   </div>
 
 <script>
-
 document.getElementById('year').textContent = new Date().getFullYear();
 
 let reconocimientoBaifo;
@@ -212,35 +211,42 @@ let modoBaifoActivo=false;
 let esperandoPregunta=false;
 let audioBaifo=null;
 let vozAbortController=null;
+let baifoHablando=false;
 
-// 🔥 detectar código
+const palabrasBaifo = [
+  "baifo","vaifo","paifo","byfo","bayfo","baifon","bai fo",
+  "hey baifo","ey baifo","oye baifo","oi baifo"
+];
+
+function contieneWakeWord(texto){
+  texto = texto.toLowerCase();
+  return palabrasBaifo.some(p => texto.includes(p));
+}
+
+function quitarWakeWord(texto){
+  let t = texto.toLowerCase();
+  palabrasBaifo.forEach(p=>{
+    t = t.replaceAll(p,"");
+  });
+  return t.trim();
+}
+
 function contieneCodigo(texto){
   const t = texto.toLowerCase();
-
   return (
-    t.includes("```") ||
-    t.includes("#include") ||
-    t.includes("void setup") ||
-    t.includes("void loop") ||
-    t.includes("const int") ||
-    t.includes("function") ||
-    t.includes("class ") ||
-    t.includes("def ") ||
-    t.includes("<html") ||
-    t.includes("<script") ||
+    t.includes("```") || t.includes("#include") ||
+    t.includes("void setup") || t.includes("void loop") ||
+    t.includes("const int") || t.includes("function") ||
+    t.includes("class ") || t.includes("def ") ||
+    t.includes("<html") || t.includes("<script") ||
     (t.includes("{") && t.includes("}") && t.includes(";"))
   );
 }
 
-// 🔥 escapar HTML
 function escaparHTML(texto){
-  return texto
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;");
+  return texto.replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
 }
 
-// 🔥 formatear respuesta
 function formatearRespuesta(texto){
   const partes = texto.split("```");
   let html = "";
@@ -256,33 +262,66 @@ function formatearRespuesta(texto){
   return html;
 }
 
-// 🔥 voz con ElevenLabs
 async function hablarLocal(texto){
-  if(contieneCodigo(texto)){
-    return;
+  if(contieneCodigo(texto)) return;
+
+  try{
+    baifoHablando = true;
+
+    if(reconocimientoBaifo){
+      reconocimientoBaifo.stop();
+    }
+
+    if(audioBaifo){
+      audioBaifo.pause();
+      audioBaifo.currentTime = 0;
+      audioBaifo = null;
+    }
+
+    if(vozAbortController){
+      vozAbortController.abort();
+    }
+
+    vozAbortController = new AbortController();
+
+    const res = await fetch('/voz',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({texto}),
+      signal:vozAbortController.signal
+    });
+
+    if(!res.ok){
+      const err = await res.text();
+      console.error("Error en /voz:", err);
+      baifoHablando = false;
+      return;
+    }
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+
+    audioBaifo = new Audio(url);
+
+    audioBaifo.onended = () => {
+      baifoHablando = false;
+      if(modoBaifoActivo && reconocimientoBaifo){
+        setTimeout(()=>reconocimientoBaifo.start(),300);
+      }
+    };
+
+    await audioBaifo.play();
+
+  }catch(error){
+    console.error("No pudo hablar:", error);
+    baifoHablando = false;
+
+    if(modoBaifoActivo && reconocimientoBaifo){
+      setTimeout(()=>reconocimientoBaifo.start(),500);
+    }
   }
-
-  if(vozAbortController){
-    vozAbortController.abort();
-  }
-
-  vozAbortController = new AbortController();
-
-  const res = await fetch('/voz',{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({texto}),
-    signal:vozAbortController.signal
-  });
-
-  const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
-
-  audioBaifo = new Audio(url);
-  audioBaifo.play();
 }
 
-// 🔥 agregar mensaje
 function agregarMensaje(texto,clase=''){
   const chat=document.getElementById('chat');
   const m=document.createElement('div');
@@ -292,7 +331,6 @@ function agregarMensaje(texto,clase=''){
   chat.scrollTop=chat.scrollHeight;
 }
 
-// 🔥 STREAMING
 async function enviarPreguntaStreaming(pregunta){
   agregarMensaje('<strong>Tú:</strong> '+pregunta,'usuario');
 
@@ -310,38 +348,61 @@ async function enviarPreguntaStreaming(pregunta){
   while(true){
     const {done,value}=await reader.read();
     if(done) break;
-
-    const chunk=decoder.decode(value);
-    textoCompleto+=chunk;
+    textoCompleto += decoder.decode(value);
   }
 
   agregarMensaje('<strong>Baifo 🤖:</strong> '+formatearRespuesta(textoCompleto),'botsito');
 
-  hablarLocal(textoCompleto);
+  await hablarLocal(textoCompleto);
 }
 
-// 🎤 activar
 function activarModoBaifo(){
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+
+  if(!SR){
+    alert("Tu navegador no soporta reconocimiento de voz.");
+    return;
+  }
+
+  modoBaifoActivo=true;
+  esperandoPregunta=false;
 
   reconocimientoBaifo=new SR();
   reconocimientoBaifo.lang="es-ES";
   reconocimientoBaifo.continuous=true;
+  reconocimientoBaifo.interimResults=false;
+  reconocimientoBaifo.maxAlternatives=5;
 
   reconocimientoBaifo.onresult=(e)=>{
-    const texto=e.results[e.results.length-1][0].transcript.toLowerCase();
+    if(baifoHablando) return;
+
+    let texto="";
+    for(let i=e.resultIndex; i<e.results.length; i++){
+      texto += e.results[i][0].transcript.toLowerCase() + " ";
+    }
+
+    texto = texto.trim();
+    console.log("Escuchado:", texto);
 
     if(!esperandoPregunta){
-      if(texto.includes("baifo")){
+      if(contieneWakeWord(texto)){
         esperandoPregunta=true;
-        hablarLocal("Te escucho");
+
+        const posiblePregunta = quitarWakeWord(texto);
+
+        if(posiblePregunta.length > 2){
+          esperandoPregunta=false;
+          enviarPreguntaStreaming(posiblePregunta);
+        }else{
+          hablarLocal("Te escucho");
+        }
       }
       return;
     }
 
     esperandoPregunta=false;
 
-    const pregunta=texto.replace("baifo","").trim();
+    const pregunta = quitarWakeWord(texto);
 
     if(pregunta.length>2){
       enviarPreguntaStreaming(pregunta);
@@ -349,19 +410,19 @@ function activarModoBaifo(){
   };
 
   reconocimientoBaifo.onend=()=>{
-    if(modoBaifoActivo){
+    if(modoBaifoActivo && !baifoHablando){
       setTimeout(()=>reconocimientoBaifo.start(),300);
     }
   };
 
-  modoBaifoActivo=true;
   reconocimientoBaifo.start();
+  document.getElementById("estado").textContent = "Baifo está escuchando.";
 }
 
-// 🛑 apagar
 function detenerModoBaifo(){
   modoBaifoActivo=false;
   esperandoPregunta=false;
+  baifoHablando=false;
 
   if(reconocimientoBaifo){
     reconocimientoBaifo.stop();
@@ -383,11 +444,9 @@ function detenerModoBaifo(){
   document.getElementById("estado").textContent = "Baifo está apagado.";
 }
 
-// limpiar
 function limpiarChat(){
   document.getElementById('chat').innerHTML="";
 }
-
 </script>
 
 </body>
