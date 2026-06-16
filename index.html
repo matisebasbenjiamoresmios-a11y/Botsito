@@ -1,4 +1,4 @@
-ç<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
@@ -210,6 +210,8 @@ document.getElementById('year').textContent = new Date().getFullYear();
 let reconocimientoBaifo;
 let modoBaifoActivo=false;
 let esperandoPregunta=false;
+let audioBaifo=null;
+let vozAbortController=null;
 
 // 🔥 detectar código
 function contieneCodigo(texto){
@@ -230,15 +232,54 @@ function contieneCodigo(texto){
   );
 }
 
-// 🔥 voz instantánea
-function hablarLocal(texto){
+// 🔥 escapar HTML
+function escaparHTML(texto){
+  return texto
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;");
+}
+
+// 🔥 formatear respuesta
+function formatearRespuesta(texto){
+  const partes = texto.split("```");
+  let html = "";
+
+  partes.forEach((parte, index) => {
+    if(index % 2 === 1){
+      html += "<pre style='white-space:pre-wrap;overflow:auto;background:rgba(0,0,0,.25);padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,.08);'><code>" + escaparHTML(parte.trim()) + "</code></pre>";
+    }else{
+      html += escaparHTML(parte).replaceAll("\n","<br>");
+    }
+  });
+
+  return html;
+}
+
+// 🔥 voz con ElevenLabs
+async function hablarLocal(texto){
   if(contieneCodigo(texto)){
     return;
   }
 
-  const u=new SpeechSynthesisUtterance(texto);
-  u.lang="es-ES";
-  speechSynthesis.speak(u);
+  if(vozAbortController){
+    vozAbortController.abort();
+  }
+
+  vozAbortController = new AbortController();
+
+  const res = await fetch('/voz',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({texto}),
+    signal:vozAbortController.signal
+  });
+
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+
+  audioBaifo = new Audio(url);
+  audioBaifo.play();
 }
 
 // 🔥 agregar mensaje
@@ -272,11 +313,11 @@ async function enviarPreguntaStreaming(pregunta){
 
     const chunk=decoder.decode(value);
     textoCompleto+=chunk;
-
-    hablarLocal(chunk);
   }
 
-  agregarMensaje('<strong>Baifo 🤖:</strong> '+textoCompleto,'botsito');
+  agregarMensaje('<strong>Baifo 🤖:</strong> '+formatearRespuesta(textoCompleto),'botsito');
+
+  hablarLocal(textoCompleto);
 }
 
 // 🎤 activar
@@ -327,6 +368,17 @@ function detenerModoBaifo(){
   }
 
   speechSynthesis.cancel();
+
+  if(audioBaifo){
+    audioBaifo.pause();
+    audioBaifo.currentTime=0;
+    audioBaifo=null;
+  }
+
+  if(vozAbortController){
+    vozAbortController.abort();
+    vozAbortController=null;
+  }
 
   document.getElementById("estado").textContent = "Baifo está apagado.";
 }

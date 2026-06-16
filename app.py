@@ -13,6 +13,9 @@ MODEL_OPENAI = "gpt-4o-mini"
 TTS_MODEL = "gpt-4o-mini-tts"
 TTS_VOICE = "alloy"
 
+ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
+ELEVENLABS_VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID", "xf3Xv0R9rgFTExG0MVNo")
+
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -38,11 +41,18 @@ def stream():
             stream = client.chat.completions.create(
                 model=MODEL_OPENAI,
                 messages=[
-                    {"role": "system", "content": "Respondé corto, claro y natural."},
+                    {
+                        "role": "system",
+                        "content": (
+                            "Respondé corto, claro y natural. "
+                            "Si el usuario pide código, generá el código ordenado en bloques con triple comilla ``` "
+                            "y no agregues explicación larga salvo que la pidan."
+                        )
+                    },
                     {"role": "user", "content": pregunta}
                 ],
                 stream=True,
-                max_tokens=3000
+                max_tokens=300
             )
 
             for chunk in stream:
@@ -70,6 +80,40 @@ def ask():
 def voz():
     data = request.get_json()
     texto = (data or {}).get("texto", "").strip()
+
+    if not texto:
+        return jsonify({"error": "Texto vacío"}), 400
+
+    if ELEVENLABS_API_KEY:
+        url = f"https://api.elevenlabs.io/v1/text-to-speech/{ELEVENLABS_VOICE_ID}"
+
+        headers = {
+            "xi-api-key": ELEVENLABS_API_KEY,
+            "Content-Type": "application/json",
+            "Accept": "audio/mpeg"
+        }
+
+        body = {
+            "text": texto,
+            "model_id": "eleven_multilingual_v2",
+            "voice_settings": {
+                "stability": 0.55,
+                "similarity_boost": 0.85,
+                "style": 0.25,
+                "use_speaker_boost": True
+            }
+        }
+
+        r = requests.post(url, json=body, headers=headers, timeout=60)
+
+        if r.status_code != 200:
+            return jsonify({"error": r.text}), 500
+
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
+        temp_file.write(r.content)
+        temp_file.close()
+
+        return send_file(temp_file.name, mimetype="audio/mpeg")
 
     speech = client.audio.speech.create(
         model=TTS_MODEL,
