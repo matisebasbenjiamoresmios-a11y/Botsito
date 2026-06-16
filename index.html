@@ -332,10 +332,14 @@ function crearReconocimientoNuevo(){
 
     esperandoPregunta = false;
 
-    const pregunta = quitarWakeWord(texto);
+   const pregunta = quitarWakeWord(texto);
 
     if(pregunta.length > 2){
+      esperandoPregunta = false;
       enviarPreguntaStreaming(pregunta);
+        }else{
+          esperandoPregunta = true;
+          document.getElementById("estado").textContent = "Baifo espera tu pregunta.";
     }
   };
 
