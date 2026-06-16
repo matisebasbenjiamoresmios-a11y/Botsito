@@ -208,7 +208,7 @@ document.getElementById('year').textContent = new Date().getFullYear();
 
 let reconocimientoBaifo = null;
 let modoBaifoActivo = false;
-let esperandoPregunta = false;
+let conversacionActiva = false;
 let audioBaifo = null;
 let vozAbortController = null;
 let baifoHablando = false;
@@ -216,20 +216,38 @@ let reiniciando = false;
 
 const palabrasBaifo = [
   "baifo","vaifo","paifo","byfo","bayfo","baifon","bai fo",
-  "hey baifo","ey baifo","oye baifo","oi baifo"
+  "bifo","baif","bai","aifo","baifó","vaifó","bay foh",
+  "hey baifo","ey baifo","oye baifo","oi baifo",
+  "oye","hey","ey","oi"
 ];
 
 function contieneWakeWord(texto){
-  texto = texto.toLowerCase();
-  return palabrasBaifo.some(p => texto.includes(p));
+  texto = normalizarTexto(texto);
+  return palabrasBaifo.some(p => texto.includes(normalizarTexto(p)));
+}
+
+function normalizarTexto(texto){
+  return texto
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g,"")
+    .replace(/[¿?¡!.,;:]/g,"")
+    .trim();
 }
 
 function quitarWakeWord(texto){
-  let t = texto.toLowerCase();
+  let t = normalizarTexto(texto);
+
   palabrasBaifo.forEach(p=>{
-    t = t.replaceAll(p,"");
+    t = t.replaceAll(normalizarTexto(p),"");
   });
+
   return t.trim();
+}
+
+function esSoloActivacion(texto){
+  const limpio = quitarWakeWord(texto);
+  return limpio.length <= 2;
 }
 
 function contieneCodigo(texto){
@@ -314,32 +332,38 @@ function crearReconocimientoNuevo(){
     texto = texto.trim();
     console.log("Escuchado:", texto);
 
-    if(!esperandoPregunta){
+    if(!texto) return;
+
+    if(!conversacionActiva){
       if(contieneWakeWord(texto)){
-        esperandoPregunta = true;
+        conversacionActiva = true;
 
         const posiblePregunta = quitarWakeWord(texto);
 
         if(posiblePregunta.length > 2){
-          esperandoPregunta = false;
           enviarPreguntaStreaming(posiblePregunta);
         }else{
+          document.getElementById("estado").textContent = "Baifo espera tu pregunta.";
           hablarLocal("Te escucho");
         }
       }
       return;
     }
 
-    esperandoPregunta = false;
+    if(conversacionActiva){
+      if(contieneWakeWord(texto) && esSoloActivacion(texto)){
+        document.getElementById("estado").textContent = "Baifo espera tu pregunta.";
+        hablarLocal("Te escucho");
+        return;
+      }
 
-   const pregunta = quitarWakeWord(texto);
+      const pregunta = quitarWakeWord(texto);
 
-    if(pregunta.length > 2){
-      esperandoPregunta = false;
-      enviarPreguntaStreaming(pregunta);
-        }else{
-          esperandoPregunta = true;
-          document.getElementById("estado").textContent = "Baifo espera tu pregunta.";
+      if(pregunta.length > 2){
+        enviarPreguntaStreaming(pregunta);
+      }else{
+        document.getElementById("estado").textContent = "Baifo espera tu pregunta.";
+      }
     }
   };
 
@@ -359,7 +383,13 @@ function iniciarReconocimiento(){
 
   try{
     reconocimientoBaifo.start();
-    document.getElementById("estado").textContent = "Baifo está escuchando.";
+
+    if(conversacionActiva){
+      document.getElementById("estado").textContent = "Baifo espera tu pregunta.";
+    }else{
+      document.getElementById("estado").textContent = "Baifo está escuchando.";
+    }
+
   }catch(e){
     console.log("No se pudo iniciar todavía:", e.message);
   }
@@ -431,7 +461,13 @@ async function hablarLocal(texto){
 
     audioBaifo.onended = () => {
       baifoHablando = false;
-      document.getElementById("estado").textContent = "Baifo está escuchando.";
+
+      if(conversacionActiva){
+        document.getElementById("estado").textContent = "Baifo espera tu pregunta.";
+      }else{
+        document.getElementById("estado").textContent = "Baifo está escuchando.";
+      }
+
       reiniciarReconocimientoFuerte();
     };
 
@@ -478,7 +514,7 @@ async function enviarPreguntaStreaming(pregunta){
 
 function activarModoBaifo(){
   modoBaifoActivo = true;
-  esperandoPregunta = false;
+  conversacionActiva = false;
   baifoHablando = false;
   reiniciando = false;
 
@@ -493,7 +529,7 @@ function activarModoBaifo(){
 
 function detenerModoBaifo(){
   modoBaifoActivo = false;
-  esperandoPregunta = false;
+  conversacionActiva = false;
   baifoHablando = false;
   reiniciando = false;
 
