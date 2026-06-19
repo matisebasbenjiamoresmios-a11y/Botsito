@@ -30,7 +30,7 @@ def index():
     return resp
 
 
-# 🔥 STREAMING NUEVO
+# STREAMING NUEVO
 @app.route("/stream", methods=["POST"])
 def stream():
     data = request.get_json()
@@ -52,7 +52,7 @@ def stream():
                     {"role": "user", "content": pregunta}
                 ],
                 stream=True,
-                max_tokens=300
+                max_tokens=200
             )
 
             for chunk in stream:
