@@ -141,19 +141,25 @@ def voz():
 # ===========================
 @app.route("/audio", methods=["POST"])
 def recibir_audio():
-    if "audio" not in request.files:
-        return jsonify({"error": "No se recibió ningún archivo"}), 400
 
-    audio = request.files["audio"]
+    audio = request.get_data()
+
+    if not audio:
+        return jsonify({
+            "estado": "error",
+            "mensaje": "No se recibieron datos"
+        }), 400
 
     os.makedirs("uploads", exist_ok=True)
-    ruta = os.path.join("uploads", "audio_esp32.wav")
-    audio.save(ruta)
+
+    ruta = os.path.join("uploads", "audio_esp32.raw")
+
+    with open(ruta, "wb") as f:
+        f.write(audio)
 
     return jsonify({
         "estado": "ok",
-        "mensaje": "Audio recibido correctamente",
-        "archivo": ruta
+        "bytes": len(audio)
     })
     
 if __name__ == "__main__":
