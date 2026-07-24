@@ -179,17 +179,24 @@ def recibir_audio():
 
         texto = transcripcion.text
 
-        return app.response_class(
-            response=json.dumps(
-                {
-                    "estado": "ok",
-                    "texto": texto
-                },
-                ensure_ascii=False
-            ),
-            status=200,
-            mimetype="application/json"
-        )
+        from bot_core import responder_pregunta
+
+        respuesta = responder_pregunta(texto)
+
+        speech = client.audio.speech.create(
+        model=TTS_MODEL,
+        voice=TTS_VOICE,
+        input=respuesta
+)
+
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
+        temp_file.write(speech.content)
+        temp_file.close()
+
+        return send_file(
+        temp_file.name,
+        mimetype="audio/mpeg"
+)
     except Exception as e:
 
         return jsonify({
