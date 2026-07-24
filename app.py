@@ -30,6 +30,17 @@ def index():
     return resp
 
 
+# ===========================
+# PING PARA ESP32
+# ===========================
+@app.route("/ping", methods=["GET"])
+def ping():
+    return jsonify({
+        "estado": "ok",
+        "mensaje": "Hola ESP32"
+    })
+
+
 # STREAMING NUEVO
 @app.route("/stream", methods=["POST"])
 def stream():
