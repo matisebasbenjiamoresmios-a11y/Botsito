@@ -154,6 +154,14 @@ def recibir_audio():
         "estado": "ok",
         "mensaje": "Hola ESP32"
     })
+        
+        
+        
+        @app.route("/rutas")
+        def rutas():
+            return {
+        "rutas": [str(r) for r in app.url_map.iter_rules()]
+    }
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
