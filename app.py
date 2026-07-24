@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify, send_file, make_response, Response, stream_with_context
 import requests
+import wave
 import os
 import PyPDF2
 import docx
@@ -152,15 +153,42 @@ def recibir_audio():
 
     os.makedirs("uploads", exist_ok=True)
 
-    ruta = os.path.join("uploads", "audio_esp32.raw")
+    raw_path = "uploads/audio_esp32.raw"
+    wav_path = "uploads/audio_esp32.wav"
 
-    with open(ruta, "wb") as f:
+    # Guardar RAW
+    with open(raw_path, "wb") as f:
         f.write(audio)
 
-    return jsonify({
-        "estado": "ok",
-        "bytes": len(audio)
-    })
+    # Convertir a WAV
+    with wave.open(wav_path, "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)      # 16 bits
+        wav.setframerate(16000)  # 16 kHz
+        wav.writeframes(audio)
+
+    try:
+
+        with open(wav_path, "rb") as f:
+
+            transcripcion = client.audio.transcriptions.create(
+                model="gpt-4o-mini-transcribe",
+                file=f
+            )
+
+        texto = transcripcion.text
+
+        return jsonify({
+            "estado": "ok",
+            "texto": texto
+        })
+
+    except Exception as e:
+
+        return jsonify({
+            "estado": "error",
+            "mensaje": str(e)
+        }), 500
     
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
