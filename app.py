@@ -30,17 +30,6 @@ def index():
     return resp
 
 
-# ===========================
-# PING PARA ESP32
-# ===========================
-@app.route("/ping", methods=["GET"])
-def ping():
-    return jsonify({
-        "estado": "ok",
-        "mensaje": "Hola ESP32"
-    })
-
-
 # STREAMING NUEVO
 @app.route("/stream", methods=["POST"])
 def stream():
@@ -137,6 +126,27 @@ def voz():
     temp_file.close()
 
     return send_file(temp_file.name, mimetype="audio/mpeg")
+
+
+# ===========================
+# RECIBIR AUDIO DESDE ESP32
+# ===========================
+@app.route("/audio", methods=["POST"])
+def recibir_audio():
+    if "audio" not in request.files:
+        return jsonify({"error": "No se recibió ningún archivo"}), 400
+
+    audio = request.files["audio"]
+
+    os.makedirs("uploads", exist_ok=True)
+    ruta = os.path.join("uploads", "audio_esp32.wav")
+    audio.save(ruta)
+
+    return jsonify({
+        "estado": "ok",
+        "mensaje": "Audio recibido correctamente",
+        "archivo": ruta
+    })
 
 
 if __name__ == "__main__":
