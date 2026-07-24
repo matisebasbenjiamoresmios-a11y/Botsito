@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify, send_file, make_response, Response, stream_with_context
 import requests
 import wave
+import uuid
 import json
 import os
 import PyPDF2
@@ -22,6 +23,10 @@ ELEVENLABS_VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID", "xf3Xv0R9rgFTExG0MVNo")
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+AUDIO_DIR = os.path.join(BASE_DIR, "tts")
+
+os.makedirs(AUDIO_DIR, exist_ok=True) 
 
 
 @app.route("/")
@@ -203,6 +208,16 @@ def recibir_audio():
             "estado": "error",
             "mensaje": str(e)
         }), 500
+        
+        
+        
+@app.route("/tts/<nombre>")
+def servir_tts(nombre):
+        return send_file(
+        os.path.join(AUDIO_DIR, nombre),
+        mimetype="audio/mpeg"
+    )
+
     
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
