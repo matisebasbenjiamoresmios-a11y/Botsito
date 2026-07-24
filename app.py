@@ -189,10 +189,10 @@ def recibir_audio():
         respuesta = responder_pregunta(texto)
 
         speech = client.audio.speech.create(
-        model=TTS_MODEL,
-        voice=TTS_VOICE,
-        input=respuesta
-)
+            model=TTS_MODEL,
+            voice=TTS_VOICE,
+            input=respuesta
+        )
 
         nombre = f"{uuid.uuid4()}.mp3"
 
@@ -201,11 +201,18 @@ def recibir_audio():
         with open(ruta, "wb") as f:
             f.write(speech.content)
 
-    return jsonify({
-    "estado": "ok",
-    "texto": respuesta,
-    "audio": request.host_url + "tts/" + nombre
-})
+        return jsonify({
+            "estado": "ok",
+            "texto": respuesta,
+            "audio": request.host_url + "tts/" + nombre
+        })
+
+    except Exception as e:
+
+        return jsonify({
+            "estado": "error",
+            "mensaje": str(e)
+        }), 500
         
         
         
