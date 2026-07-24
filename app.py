@@ -147,6 +147,15 @@ def recibir_audio():
         "mensaje": "Audio recibido correctamente",
         "archivo": ruta
     })
+    
+    
+    
+    @app.route("/ping", methods=["GET"])
+    def ping():
+        return jsonify({
+            "estado": "ok",
+            "mensaje": "Hola ESP32"
+    })
 
 
 if __name__ == "__main__":
