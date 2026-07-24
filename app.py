@@ -8,6 +8,12 @@ from openai import OpenAI
 
 app = Flask(__name__)
 
+print("********** APP.PY CARGADO **********")
+
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+MODEL_OPENAI = "gpt-4o-mini"
+
+
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 MODEL_OPENAI = "gpt-4o-mini"
 TTS_MODEL = "gpt-4o-mini-tts"
@@ -74,6 +80,8 @@ def ask():
     bot_reply = responder_pregunta(user_msg)
 
     return jsonify({"respuesta": bot_reply})
+
+
 
 
 @app.route("/voz", methods=["POST"])
@@ -148,21 +156,6 @@ def recibir_audio():
         "archivo": ruta
     })
     
-    @app.route("/ping", methods=["GET"])
-    def ping():
-        return jsonify({
-        "estado": "ok",
-        "mensaje": "Hola ESP32"
-    })
-        
-        
-        
-        @app.route("/rutas")
-        def rutas():
-            return {
-        "rutas": [str(r) for r in app.url_map.iter_rules()]
-    }
-
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
