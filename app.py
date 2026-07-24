@@ -194,20 +194,18 @@ def recibir_audio():
         input=respuesta
 )
 
-        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
-        temp_file.write(speech.content)
-        temp_file.close()
+        nombre = f"{uuid.uuid4()}.mp3"
 
-        return send_file(
-        temp_file.name,
-        mimetype="audio/mpeg"
-)
-    except Exception as e:
+        ruta = os.path.join(AUDIO_DIR, nombre)
 
-        return jsonify({
-            "estado": "error",
-            "mensaje": str(e)
-        }), 500
+        with open(ruta, "wb") as f:
+            f.write(speech.content)
+
+    return jsonify({
+    "estado": "ok",
+    "texto": respuesta,
+    "audio": request.host_url + "tts/" + nombre
+})
         
         
         
