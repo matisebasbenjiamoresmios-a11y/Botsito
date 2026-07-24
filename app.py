@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify, send_file, make_response, Response, stream_with_context
 import requests
 import wave
+import json
 import os
 import PyPDF2
 import docx
@@ -178,11 +179,17 @@ def recibir_audio():
 
         texto = transcripcion.text
 
-        return jsonify({
-            "estado": "ok",
-            "texto": texto
-        })
-
+        return app.response_class(
+            response=json.dumps(
+                {
+                    "estado": "ok",
+                    "texto": texto
+                },
+                ensure_ascii=False
+            ),
+            status=200,
+            mimetype="application/json"
+        )
     except Exception as e:
 
         return jsonify({
