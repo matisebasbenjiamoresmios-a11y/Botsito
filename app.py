@@ -8,11 +8,6 @@ from openai import OpenAI
 
 app = Flask(__name__)
 
-print("********** APP.PY CARGADO **********")
-
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-MODEL_OPENAI = "gpt-4o-mini"
-
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 MODEL_OPENAI = "gpt-4o-mini"
@@ -82,7 +77,12 @@ def ask():
     return jsonify({"respuesta": bot_reply})
 
 
-
+@app.route("/ping", methods=["GET"])
+def ping():
+    return jsonify({
+        "estado": "ok",
+        "mensaje": "Hola ESP32"
+    })
 
 @app.route("/voz", methods=["POST"])
 def voz():
