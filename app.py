@@ -146,8 +146,20 @@ def voz():
 # ===========================
 # RECIBIR AUDIO DESDE ESP32
 # ===========================
+# ===========================
+# RECIBIR AUDIO DESDE ESP32
+# ===========================
 @app.route("/audio", methods=["POST"])
 def recibir_audio():
+
+    session = request.args.get("session")
+    final = request.args.get("final", "0")
+
+    if not session:
+        return jsonify({
+            "estado": "error",
+            "mensaje": "Falta session"
+        }), 400
 
     audio = request.get_data()
 
@@ -159,19 +171,42 @@ def recibir_audio():
 
     os.makedirs("uploads", exist_ok=True)
 
-    raw_path = "uploads/audio_esp32.raw"
-    wav_path = "uploads/audio_esp32.wav"
+    raw_path = os.path.join(
+        "uploads",
+        f"{session}.raw"
+    )
 
-    # Guardar RAW
-    with open(raw_path, "wb") as f:
+    # Agregar el bloque recibido
+    with open(raw_path, "ab") as f:
         f.write(audio)
 
-    # Convertir a WAV
+    # Si todavía no terminó la grabación,
+    # solamente confirmar recepción.
+    if final != "1":
+
+        return jsonify({
+            "estado": "recibiendo",
+            "mensaje": "Bloque recibido"
+        })
+        
+
+    # ======================================
+    # A partir de aquí comienza la segunda
+    # parte que te pasaré en el siguiente mensaje.
+    # ======================================
+    
+    wav_path = os.path.join(
+        "uploads",
+        f"{session}.wav"
+    )
+
     with wave.open(wav_path, "wb") as wav:
         wav.setnchannels(1)
-        wav.setsampwidth(2)      # 16 bits
-        wav.setframerate(16000)  # 16 kHz
-        wav.writeframes(audio)
+        wav.setsampwidth(2)
+        wav.setframerate(16000)
+
+        with open(raw_path, "rb") as raw:
+            wav.writeframes(raw.read())
 
     try:
 
@@ -201,6 +236,12 @@ def recibir_audio():
         with open(ruta, "wb") as f:
             f.write(speech.content)
 
+        if os.path.exists(raw_path):
+            os.remove(raw_path)
+
+        if os.path.exists(wav_path):
+            os.remove(wav_path)
+
         return jsonify({
             "estado": "ok",
             "texto": respuesta,
@@ -213,8 +254,8 @@ def recibir_audio():
             "estado": "error",
             "mensaje": str(e)
         }), 500
-        
-        
+    
+    
         
 @app.route("/tts/<nombre>")
 def servir_tts(nombre):
