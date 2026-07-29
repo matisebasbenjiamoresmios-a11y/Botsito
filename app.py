@@ -1,7 +1,6 @@
 from flask import Flask, request, jsonify, send_file, make_response, Response, stream_with_context
 import requests
 import wave
-import uuid
 import json
 import os
 import PyPDF2
@@ -25,8 +24,10 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 AUDIO_DIR = os.path.join(BASE_DIR, "tts")
+NOMBRE_ULTIMO_AUDIO = "ultima_respuesta.mp3"
+RUTA_ULTIMO_AUDIO = os.path.join(AUDIO_DIR, NOMBRE_ULTIMO_AUDIO)
 
-os.makedirs(AUDIO_DIR, exist_ok=True) 
+os.makedirs(AUDIO_DIR, exist_ok=True)
 
 
 @app.route("/")
@@ -229,12 +230,15 @@ def recibir_audio():
             input=respuesta
         )
 
-        nombre = f"{uuid.uuid4()}.mp3"
+        # Guardar siempre la respuesta más reciente con el mismo nombre.
+        # Primero se escribe en un archivo temporal y luego se reemplaza
+        # para evitar que se sirva un MP3 incompleto.
+        ruta_temporal = RUTA_ULTIMO_AUDIO + ".tmp"
 
-        ruta = os.path.join(AUDIO_DIR, nombre)
-
-        with open(ruta, "wb") as f:
+        with open(ruta_temporal, "wb") as f:
             f.write(speech.content)
+
+        os.replace(ruta_temporal, RUTA_ULTIMO_AUDIO)
 
         if os.path.exists(raw_path):
             os.remove(raw_path)
@@ -245,7 +249,7 @@ def recibir_audio():
         return jsonify({
             "estado": "ok",
             "texto": respuesta,
-            "audio": request.host_url + "tts/" + nombre
+            "audio": request.host_url + "tts/" + NOMBRE_ULTIMO_AUDIO
         })
 
     except Exception as e:
@@ -257,12 +261,25 @@ def recibir_audio():
     
     
         
-@app.route("/tts/<nombre>")
-def servir_tts(nombre):
-        return send_file(
-        os.path.join(AUDIO_DIR, nombre),
-        mimetype="audio/mpeg"
-    )
+@app.route("/tts/ultima_respuesta.mp3")
+def servir_ultima_respuesta():
+    if not os.path.isfile(RUTA_ULTIMO_AUDIO):
+        return jsonify({
+            "estado": "error",
+            "mensaje": "Todavía no existe una respuesta de audio"
+        }), 404
+
+    respuesta_audio = make_response(send_file(
+        RUTA_ULTIMO_AUDIO,
+        mimetype="audio/mpeg",
+        conditional=True
+    ))
+
+    respuesta_audio.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    respuesta_audio.headers["Pragma"] = "no-cache"
+    respuesta_audio.headers["Expires"] = "0"
+
+    return respuesta_audio
 
     
 if __name__ == "__main__":
