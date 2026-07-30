@@ -6,6 +6,7 @@ import os
 import PyPDF2
 import docx
 import tempfile
+import re
 from openai import OpenAI
 
 app = Flask(__name__)
@@ -28,6 +29,35 @@ NOMBRE_ULTIMO_AUDIO = "ultima_respuesta.mp3"
 RUTA_ULTIMO_AUDIO = os.path.join(AUDIO_DIR, NOMBRE_ULTIMO_AUDIO)
 
 os.makedirs(AUDIO_DIR, exist_ok=True)
+
+
+def extraer_pregunta_activada(texto):
+    """
+    Detecta "Hey Baifo" u "Oye Baifo" y variantes comunes
+    producidas por la transcripción. Devuelve (activado, pregunta).
+    """
+    texto = (texto or "").strip()
+
+    if not texto:
+        return False, ""
+
+    patron = re.compile(
+        r"\b(?:hey|ey|oye)\s+(?:baifo|bai?fo|byfo|vaifo|wifo|bifo)\b",
+        re.IGNORECASE
+    )
+
+    coincidencia = patron.search(texto)
+
+    if not coincidencia:
+        return False, ""
+
+    pregunta = texto[coincidencia.end():].strip(" \t\r\n,.;:¿?¡!-")
+    return True, pregunta
+
+
+def eliminar_archivo_si_existe(ruta):
+    if os.path.exists(ruta):
+        os.remove(ruta)
 
 
 @app.route("/")
@@ -218,11 +248,34 @@ def recibir_audio():
                 file=f
             )
 
-        texto = transcripcion.text
+        texto_transcrito = transcripcion.text.strip()
+        activado, pregunta = extraer_pregunta_activada(texto_transcrito)
+
+        print(f"Transcripción recibida: {texto_transcrito}")
+
+        if not activado:
+            eliminar_archivo_si_existe(raw_path)
+            eliminar_archivo_si_existe(wav_path)
+
+            return jsonify({
+                "estado": "sin_activacion",
+                "transcripcion": texto_transcrito,
+                "mensaje": "No se detectó Hey Baifo ni Oye Baifo"
+            })
+
+        if not pregunta:
+            eliminar_archivo_si_existe(raw_path)
+            eliminar_archivo_si_existe(wav_path)
+
+            return jsonify({
+                "estado": "sin_pregunta",
+                "transcripcion": texto_transcrito,
+                "mensaje": "Se detectó la activación, pero no una pregunta"
+            })
 
         from bot_core import responder_pregunta
 
-        respuesta = responder_pregunta(texto)
+        respuesta = responder_pregunta(pregunta)
 
         speech = client.audio.speech.create(
             model=TTS_MODEL,
@@ -240,19 +293,20 @@ def recibir_audio():
 
         os.replace(ruta_temporal, RUTA_ULTIMO_AUDIO)
 
-        if os.path.exists(raw_path):
-            os.remove(raw_path)
-
-        if os.path.exists(wav_path):
-            os.remove(wav_path)
+        eliminar_archivo_si_existe(raw_path)
+        eliminar_archivo_si_existe(wav_path)
 
         return jsonify({
             "estado": "ok",
+            "transcripcion": texto_transcrito,
+            "pregunta": pregunta,
             "texto": respuesta,
             "audio": request.host_url + "tts/" + NOMBRE_ULTIMO_AUDIO
         })
 
     except Exception as e:
+        eliminar_archivo_si_existe(raw_path)
+        eliminar_archivo_si_existe(wav_path)
 
         return jsonify({
             "estado": "error",
