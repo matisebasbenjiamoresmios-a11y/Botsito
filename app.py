@@ -7,6 +7,7 @@ import PyPDF2
 import docx
 import tempfile
 import re
+from array import array
 from openai import OpenAI
 
 app = Flask(__name__)
@@ -42,7 +43,7 @@ def extraer_pregunta_activada(texto):
         return False, ""
 
     patron = re.compile(
-        r"\b(?:hey|ey|oye)\s+(?:baifo|bai?fo|byfo|vaifo|wifo|bifo)\b",
+        r"\b(?:hey|ey|oye|hoy)\b[\s,.;:¡!¿?\\-]*(?:baifo|waifo|weifo|wifo|wifi|wi[\s-]?fi|guifo|byfo|vaifo|bifo)\b",
         re.IGNORECASE
     )
 
@@ -53,6 +54,42 @@ def extraer_pregunta_activada(texto):
 
     pregunta = texto[coincidencia.end():].strip(" \t\r\n,.;:¿?¡!-")
     return True, pregunta
+
+
+
+
+def amplificar_pcm16(datos_pcm, objetivo_pico=24000, ganancia_maxima=12.0):
+    """Normaliza audio PCM mono de 16 bits sin usar librerías externas."""
+    if not datos_pcm:
+        return datos_pcm, 0, 0, 1.0
+
+    muestras = array("h")
+    muestras.frombytes(datos_pcm)
+
+    if os.sys.byteorder != "little":
+        muestras.byteswap()
+
+    pico_original = max((abs(int(m)) for m in muestras), default=0)
+
+    if pico_original == 0:
+        return datos_pcm, 0, 0, 1.0
+
+    ganancia = min(ganancia_maxima, objetivo_pico / pico_original)
+
+    for i, muestra in enumerate(muestras):
+        valor = int(muestra * ganancia)
+        if valor > 32767:
+            valor = 32767
+        elif valor < -32768:
+            valor = -32768
+        muestras[i] = valor
+
+    pico_final = max((abs(int(m)) for m in muestras), default=0)
+
+    if os.sys.byteorder != "little":
+        muestras.byteswap()
+
+    return muestras.tobytes(), pico_original, pico_final, ganancia
 
 
 def eliminar_archivo_si_existe(ruta):
@@ -231,13 +268,16 @@ def recibir_audio():
         f"{session}.wav"
     )
 
+    with open(raw_path, "rb") as raw:
+        datos_raw = raw.read()
+
+    datos_amplificados, pico_original, pico_final, ganancia_aplicada = amplificar_pcm16(datos_raw)
+
     with wave.open(wav_path, "wb") as wav:
         wav.setnchannels(1)
         wav.setsampwidth(2)
         wav.setframerate(16000)
-
-        with open(raw_path, "rb") as raw:
-            wav.writeframes(raw.read())
+        wav.writeframes(datos_amplificados)
 
     try:
 
@@ -247,7 +287,13 @@ def recibir_audio():
 
             transcripcion = client.audio.transcriptions.create(
                 model="gpt-4o-mini-transcribe",
-                file=f
+                file=f,
+                language="es",
+                prompt=(
+                    "El audio está en español. El usuario puede decir "
+                    "'Hey Baifo' u 'Oye Baifo'. Baifo es el nombre propio "
+                    "del asistente y debe escribirse exactamente Baifo."
+                )
             )
 
         texto_transcrito = (transcripcion.text or "").strip()
@@ -256,6 +302,9 @@ def recibir_audio():
         print("DIAGNÓSTICO WHISPER")
         print("==============================")
         print(f"Tamaño WAV: {os.path.getsize(wav_path)} bytes")
+        print(f"Pico original PCM: {pico_original}")
+        print(f"Ganancia aplicada: {ganancia_aplicada:.2f}x")
+        print(f"Pico final PCM: {pico_final}")
         print(f"Texto recibido: '{texto_transcrito}'")
         print("==============================\n")
 
