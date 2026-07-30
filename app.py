@@ -241,6 +241,8 @@ def recibir_audio():
 
     try:
 
+        print(f"Archivo WAV: {wav_path}")
+
         with open(wav_path, "rb") as f:
 
             transcripcion = client.audio.transcriptions.create(
@@ -248,10 +250,16 @@ def recibir_audio():
                 file=f
             )
 
-        texto_transcrito = transcripcion.text.strip()
-        activado, pregunta = extraer_pregunta_activada(texto_transcrito)
+        texto_transcrito = (transcripcion.text or "").strip()
 
-        print(f"Transcripción recibida: {texto_transcrito}")
+        print("\n==============================")
+        print("DIAGNÓSTICO WHISPER")
+        print("==============================")
+        print(f"Tamaño WAV: {os.path.getsize(wav_path)} bytes")
+        print(f"Texto recibido: '{texto_transcrito}'")
+        print("==============================\n")
+
+        activado, pregunta = extraer_pregunta_activada(texto_transcrito)
 
         if not activado:
             eliminar_archivo_si_existe(raw_path)
