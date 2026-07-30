@@ -288,15 +288,31 @@ def recibir_audio():
             transcripcion = client.audio.transcriptions.create(
                 model="gpt-4o-mini-transcribe",
                 file=f,
-                language="es",
-                prompt=(
-                    "El audio está en español. El usuario puede decir "
-                    "'Hey Baifo' u 'Oye Baifo'. Baifo es el nombre propio "
-                    "del asistente y debe escribirse exactamente Baifo."
-                )
+                language="es"
             )
 
         texto_transcrito = (transcripcion.text or "").strip()
+
+        # Nunca enviar a GPT una transcripción vacía.
+        if not texto_transcrito:
+            print("\n==============================")
+            print("DIAGNÓSTICO WHISPER")
+            print("==============================")
+            print(f"Tamaño WAV: {os.path.getsize(wav_path)} bytes")
+            print(f"Pico original PCM: {pico_original}")
+            print(f"Ganancia aplicada: {ganancia_aplicada:.2f}x")
+            print(f"Pico final PCM: {pico_final}")
+            print("Texto recibido: ''")
+            print("==============================\n")
+
+            eliminar_archivo_si_existe(raw_path)
+            eliminar_archivo_si_existe(wav_path)
+
+            return jsonify({
+                "estado": "sin_audio",
+                "transcripcion": "",
+                "mensaje": "Whisper no detectó ninguna voz"
+            })
 
         print("\n==============================")
         print("DIAGNÓSTICO WHISPER")
