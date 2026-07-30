@@ -332,6 +332,12 @@ def recibir_audio():
 
         from bot_core import responder_pregunta
 
+        print("\n==============================")
+        print("DIAGNÓSTICO GPT")
+        print("==============================")
+        print(f"Pregunta enviada a GPT: {pregunta!r}")
+        print("==============================\n")
+
         respuesta = responder_pregunta(pregunta)
 
         speech = client.audio.speech.create(
