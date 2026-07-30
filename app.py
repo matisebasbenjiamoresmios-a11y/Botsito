@@ -324,27 +324,10 @@ def recibir_audio():
         print(f"Texto recibido: '{texto_transcrito}'")
         print("==============================\n")
 
-        activado, pregunta = extraer_pregunta_activada(texto_transcrito)
-
-        if not activado:
-            eliminar_archivo_si_existe(raw_path)
-            eliminar_archivo_si_existe(wav_path)
-
-            return jsonify({
-                "estado": "sin_activacion",
-                "transcripcion": texto_transcrito,
-                "mensaje": "No se detectó Hey Baifo ni Oye Baifo"
-            })
-
-        if not pregunta:
-            eliminar_archivo_si_existe(raw_path)
-            eliminar_archivo_si_existe(wav_path)
-
-            return jsonify({
-                "estado": "sin_pregunta",
-                "transcripcion": texto_transcrito,
-                "mensaje": "Se detectó la activación, pero no una pregunta"
-            })
+        # Por ahora se procesa directamente todo lo que Whisper transcriba.
+        # No se exige "Hey Baifo" ni "Oye Baifo" porque Whisper está
+        # descartando esas palabras, aunque reconoce correctamente la pregunta.
+        pregunta = texto_transcrito
 
         from bot_core import responder_pregunta
 
