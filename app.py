@@ -442,15 +442,26 @@ def servir_ultima_respuesta():
             "mensaje": "Todavía no existe una respuesta de audio"
         }), 404
 
+    tamaño = os.path.getsize(RUTA_ULTIMO_AUDIO)
+
+    print(f"Sirviendo MP3: {tamaño} bytes")
+
+    if tamaño <= 0:
+        return jsonify({
+            "estado": "error",
+            "mensaje": "El MP3 está vacío"
+        }), 500
+
     respuesta_audio = make_response(send_file(
         RUTA_ULTIMO_AUDIO,
         mimetype="audio/mpeg",
-        conditional=True
+        conditional=False
     ))
 
     respuesta_audio.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     respuesta_audio.headers["Pragma"] = "no-cache"
     respuesta_audio.headers["Expires"] = "0"
+    respuesta_audio.headers["Content-Length"] = str(tamaño)
 
     return respuesta_audio
 
