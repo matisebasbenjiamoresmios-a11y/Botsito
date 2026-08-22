@@ -108,7 +108,7 @@ def responder(pregunta: str, forzar_ia=False) -> str:
     if "hora" in p:
         return ahora_local().strftime("Son las %H:%M.")
 
-    if "dia" in p or "fecha" in p:
+    if re.search(r"\b(dia|día|fecha)\b", p):
         hoy = ahora_local()
         return f"Hoy es {hoy:%d/%m/%Y}."
 
