@@ -15,18 +15,20 @@
       --border:rgba(255,255,255,.08);
       --accent:#4cc9f0;
       --accent-2:#3a86ff;
-      --radius:16px;
       --shadow:0 10px 30px rgba(0,0,0,.35);
     }
 
-    html,body{height:100%}
     *{box-sizing:border-box}
 
-    body{
+    html,body{
+      height:100%;
       margin:0;
+    }
+
+    body{
       background:var(--bg);
       color:var(--text);
-      font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
     }
 
     .wrap{
@@ -36,9 +38,6 @@
     }
 
     header{
-      position:sticky;
-      top:0;
-      z-index:20;
       background:linear-gradient(180deg,rgba(0,0,0,.25),transparent);
       backdrop-filter:blur(6px);
     }
@@ -61,7 +60,9 @@
       font-weight:900;
     }
 
-    .brand{font-weight:700}
+    .brand{
+      font-weight:700;
+    }
 
     .brand small{
       display:block;
@@ -69,99 +70,47 @@
       font-weight:400;
     }
 
-    main{padding:18px}
-
-    .container{
-      max-width:980px;
-      margin:0 auto;
+    main{
       display:grid;
-      gap:16px;
+      place-items:center;
+      padding:24px;
     }
 
-    .panel{
-      background:var(--panel);
-      border:1px solid var(--border);
-      border-radius:var(--radius);
-      box-shadow:var(--shadow);
-    }
-
-    .chat-area{
-      display:grid;
-      grid-template-rows:1fr auto;
-    }
-
-    #chat{
-      padding:18px;
-      max-height:55vh;
-      overflow:auto;
-      scroll-behavior:smooth;
-    }
-
-    .mensaje{
-      background:linear-gradient(180deg,rgba(255,255,255,.03),transparent);
-      border:1px solid var(--border);
-      border-radius:14px;
-      padding:10px 12px;
-      margin-bottom:10px;
-    }
-
-    .usuario{
-      background:linear-gradient(135deg,rgba(76,201,240,.15),rgba(58,134,255,.12));
-    }
-
-    .botsito{
-      background:linear-gradient(180deg,rgba(255,255,255,.04),transparent);
-    }
-
-    .composer{
-      display:grid;
-      gap:10px;
-      padding:12px;
-      border-top:1px solid var(--border);
-    }
-
-    .row{
-      display:flex;
-      gap:8px;
-      align-items:center;
-      flex-wrap:wrap;
-    }
-
-    button{
-      appearance:none;
-      border:1px solid var(--border);
-      background:var(--panel);
-      color:var(--text);
-      padding:10px 14px;
-      border-radius:12px;
+    #botonBaifo{
+      width:min(360px,82vw);
+      height:140px;
+      border:none;
+      border-radius:32px;
       cursor:pointer;
-    }
-
-    button:hover{
-      transform:translateY(-1px);
+      font-size:24px;
+      font-weight:800;
+      letter-spacing:.3px;
+      transition:transform .15s ease, box-shadow .15s ease, background .2s ease;
       box-shadow:var(--shadow);
     }
 
-    .on{
+    #botonBaifo:hover{
+      transform:translateY(-2px);
+    }
+
+    #botonBaifo:active{
+      transform:scale(.98);
+    }
+
+    #botonBaifo.apagado{
       background:linear-gradient(135deg,#2dd4bf,#22c55e);
-      border-color:transparent;
       color:#04151f;
-      font-weight:700;
     }
 
-    .off{
+    #botonBaifo.encendido{
       background:linear-gradient(135deg,#ff4d6d,#ff8fa3);
-      border-color:transparent;
       color:white;
-      font-weight:700;
     }
 
-    #estado{
-      color:var(--muted);
-      font-size:14px;
+    #botonBaifo.cargando{
+      opacity:.65;
+      cursor:wait;
     }
-
-    #resumen-container{padding:12px}
 
     footer{
       color:var(--muted);
@@ -184,386 +133,89 @@
     </header>
 
     <main>
-      <div class="container">
-        <section class="panel chat-area">
-          <div id="chat"></div>
-
-          <div class="composer">
-            <div class="row">
-              <button class="on" onclick="activarModoBaifo()">🟢 Encender Baifo</button>
-              <button class="off" onclick="detenerModoBaifo()">🔴 Apagar Baifo</button>
-              <button onclick="limpiarChat()">🧹 Limpiar pantalla</button>
-              <span id="estado">Baifo está apagado.</span>
-            </div>
-          </div>
-        </section>
-      </div>
+      <button id="botonBaifo" class="apagado" type="button">
+        🎙️ ENCENDER BAIFO
+      </button>
     </main>
 
     <footer>© <span id="year"></span> Baifo</footer>
   </div>
 
-<script>
-document.getElementById('year').textContent = new Date().getFullYear();
+  <script>
+    document.getElementById("year").textContent = new Date().getFullYear();
 
-let reconocimientoBaifo = null;
-let modoBaifoActivo = false;
-let conversacionActiva = false;
-let audioBaifo = null;
-let vozAbortController = null;
-let baifoHablando = false;
-let reiniciando = false;
+    const boton = document.getElementById("botonBaifo");
+    let activo = false;
+    let enviando = false;
 
-const palabrasBaifo = [
-  "baifo","vaifo","paifo","byfo","bayfo","baifon","bai fo",
-  "bifo","baif","bai","aifo","baifó","vaifó","bay foh",
-  "hey baifo","ey baifo","oye baifo","oi baifo",
-  "oye","hey","ey","oi"
-];
-
-function contieneWakeWord(texto){
-  texto = normalizarTexto(texto);
-  return palabrasBaifo.some(p => texto.includes(normalizarTexto(p)));
-}
-
-function normalizarTexto(texto){
-  return texto
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g,"")
-    .replace(/[¿?¡!.,;:]/g,"")
-    .trim();
-}
-
-function quitarWakeWord(texto){
-  let t = normalizarTexto(texto);
-
-  palabrasBaifo.forEach(p=>{
-    t = t.replaceAll(normalizarTexto(p),"");
-  });
-
-  return t.trim();
-}
-
-function esSoloActivacion(texto){
-  const limpio = quitarWakeWord(texto);
-  return limpio.length <= 2;
-}
-
-function contieneCodigo(texto){
-  const t = texto.toLowerCase();
-  return (
-    t.includes("```") ||
-    t.includes("#include") ||
-    t.includes("void setup") ||
-    t.includes("void loop") ||
-    t.includes("const int") ||
-    t.includes("function") ||
-    t.includes("class ") ||
-    t.includes("def ") ||
-    t.includes("<html") ||
-    t.includes("<script") ||
-    (t.includes("{") && t.includes("}") && t.includes(";"))
-  );
-}
-
-function escaparHTML(texto){
-  return texto
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;");
-}
-
-function formatearRespuesta(texto){
-  const partes = texto.split("```");
-  let html = "";
-
-  partes.forEach((parte, index) => {
-    if(index % 2 === 1){
-      html += "<pre style='white-space:pre-wrap;overflow:auto;background:rgba(0,0,0,.25);padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,.08);'><code>" + escaparHTML(parte.trim()) + "</code></pre>";
-    }else{
-      html += escaparHTML(parte).replaceAll("\n","<br>");
-    }
-  });
-
-  return html;
-}
-
-function agregarMensaje(texto,clase=''){
-  const chat=document.getElementById('chat');
-  const m=document.createElement('div');
-  m.className='mensaje '+clase;
-  m.innerHTML=texto;
-  chat.appendChild(m);
-  chat.scrollTop=chat.scrollHeight;
-}
-
-function crearReconocimientoNuevo(){
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-
-  if(!SR){
-    alert("Tu navegador no soporta reconocimiento de voz.");
-    return;
-  }
-
-  if(reconocimientoBaifo){
-    try{
-      reconocimientoBaifo.onend = null;
-      reconocimientoBaifo.onresult = null;
-      reconocimientoBaifo.onerror = null;
-      reconocimientoBaifo.stop();
-    }catch(e){}
-  }
-
-  reconocimientoBaifo = new SR();
-  reconocimientoBaifo.lang = "es-ES";
-  reconocimientoBaifo.continuous = true;
-  reconocimientoBaifo.interimResults = false;
-  reconocimientoBaifo.maxAlternatives = 5;
-
-  reconocimientoBaifo.onresult = (e)=>{
-    if(baifoHablando) return;
-
-    let texto = "";
-    for(let i=e.resultIndex; i<e.results.length; i++){
-      texto += e.results[i][0].transcript.toLowerCase() + " ";
-    }
-
-    texto = texto.trim();
-    console.log("Escuchado:", texto);
-
-    if(!texto) return;
-
-    if(!conversacionActiva){
-      if(contieneWakeWord(texto)){
-        conversacionActiva = true;
-
-        const posiblePregunta = quitarWakeWord(texto);
-
-        if(posiblePregunta.length > 2){
-          enviarPreguntaStreaming(posiblePregunta);
-        }else{
-          document.getElementById("estado").textContent = "Baifo espera tu pregunta.";
-          hablarLocal("Te escucho");
-        }
-      }
-      return;
-    }
-
-    if(conversacionActiva){
-      if(contieneWakeWord(texto) && esSoloActivacion(texto)){
-        document.getElementById("estado").textContent = "Baifo espera tu pregunta.";
-        hablarLocal("Te escucho");
-        return;
-      }
-
-      const pregunta = quitarWakeWord(texto);
-
-      if(pregunta.length > 2){
-        enviarPreguntaStreaming(pregunta);
+    function actualizarBoton(){
+      if(activo){
+        boton.textContent = "⏹ APAGAR BAIFO";
+        boton.classList.remove("apagado");
+        boton.classList.add("encendido");
       }else{
-        document.getElementById("estado").textContent = "Baifo espera tu pregunta.";
+        boton.textContent = "🎙️ ENCENDER BAIFO";
+        boton.classList.remove("encendido");
+        boton.classList.add("apagado");
       }
     }
-  };
 
-  reconocimientoBaifo.onerror = (e)=>{
-    console.log("Error reconocimiento:", e.error);
-  };
-
-  reconocimientoBaifo.onend = ()=>{
-    if(modoBaifoActivo && !baifoHablando && !reiniciando){
-      reiniciarReconocimientoFuerte();
-    }
-  };
-}
-
-function iniciarReconocimiento(){
-  if(!modoBaifoActivo || baifoHablando) return;
-
-  try{
-    reconocimientoBaifo.start();
-
-    if(conversacionActiva){
-      document.getElementById("estado").textContent = "Baifo espera tu pregunta.";
-    }else{
-      document.getElementById("estado").textContent = "Baifo está escuchando.";
-    }
-
-  }catch(e){
-    console.log("No se pudo iniciar todavía:", e.message);
-  }
-}
-
-function reiniciarReconocimientoFuerte(){
-  if(!modoBaifoActivo || baifoHablando) return;
-
-  reiniciando = true;
-
-  setTimeout(()=>{
-    crearReconocimientoNuevo();
-
-    setTimeout(()=>{
-      reiniciando = false;
-      iniciarReconocimiento();
-    },500);
-
-  },800);
-}
-
-async function hablarLocal(texto){
-  if(contieneCodigo(texto)){
-    reiniciarReconocimientoFuerte();
-    return;
-  }
-
-  try{
-    baifoHablando = true;
-    document.getElementById("estado").textContent = "Baifo está hablando.";
-
-    if(reconocimientoBaifo){
+    async function leerEstado(){
       try{
-        reconocimientoBaifo.stop();
-      }catch(e){}
-    }
+        const res = await fetch("/baifo/control", {
+          method:"GET",
+          cache:"no-store"
+        });
 
-    if(audioBaifo){
-      audioBaifo.pause();
-      audioBaifo.currentTime = 0;
-      audioBaifo = null;
-    }
+        if(!res.ok) return;
 
-    if(vozAbortController){
-      vozAbortController.abort();
-    }
-
-    vozAbortController = new AbortController();
-
-    const res = await fetch('/voz',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({texto}),
-      signal:vozAbortController.signal
-    });
-
-    if(!res.ok){
-      const err = await res.text();
-      console.error("Error en /voz:", err);
-      baifoHablando = false;
-      reiniciarReconocimientoFuerte();
-      return;
-    }
-
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-
-    audioBaifo = new Audio(url);
-
-    audioBaifo.onended = () => {
-      baifoHablando = false;
-
-      if(conversacionActiva){
-        document.getElementById("estado").textContent = "Baifo espera tu pregunta.";
-      }else{
-        document.getElementById("estado").textContent = "Baifo está escuchando.";
+        const data = await res.json();
+        activo = Boolean(data.activo);
+        actualizarBoton();
+      }catch(error){
+        console.error("No se pudo leer el estado de Baifo:", error);
       }
+    }
 
-      reiniciarReconocimientoFuerte();
-    };
+    async function cambiarEstado(){
+      if(enviando) return;
 
-    audioBaifo.onerror = () => {
-      baifoHablando = false;
-      reiniciarReconocimientoFuerte();
-    };
+      enviando = true;
+      boton.classList.add("cargando");
 
-    await audioBaifo.play();
+      const nuevoEstado = !activo;
 
-  }catch(error){
-    console.error("No pudo hablar:", error);
-    baifoHablando = false;
-    reiniciarReconocimientoFuerte();
-  }
-}
+      try{
+        const res = await fetch("/baifo/control", {
+          method:"POST",
+          headers:{
+            "Content-Type":"application/json"
+          },
+          body:JSON.stringify({
+            activo:nuevoEstado
+          })
+        });
 
-async function enviarPreguntaStreaming(pregunta){
-  agregarMensaje('<strong>Tú:</strong> '+pregunta,'usuario');
+        if(!res.ok){
+          throw new Error(await res.text());
+        }
 
-  const res = await fetch('/stream',{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({pregunta})
-  });
+        const data = await res.json();
+        activo = Boolean(data.activo);
+        actualizarBoton();
 
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
+      }catch(error){
+        console.error("Error cambiando el estado de Baifo:", error);
+        alert("No se pudo comunicar con Baifo.");
+      }finally{
+        enviando = false;
+        boton.classList.remove("cargando");
+      }
+    }
 
-  let textoCompleto = "";
+    boton.addEventListener("click", cambiarEstado);
 
-  while(true){
-    const {done,value} = await reader.read();
-    if(done) break;
-
-    const chunk = decoder.decode(value);
-    textoCompleto += chunk;
-  }
-
-  agregarMensaje('<strong>Baifo 🤖:</strong> '+formatearRespuesta(textoCompleto),'botsito');
-
-  await hablarLocal(textoCompleto);
-}
-
-function activarModoBaifo(){
-  modoBaifoActivo = true;
-  conversacionActiva = false;
-  baifoHablando = false;
-  reiniciando = false;
-
-  crearReconocimientoNuevo();
-
-  setTimeout(()=>{
-    iniciarReconocimiento();
-  },300);
-
-  document.getElementById("estado").textContent = "Baifo está escuchando.";
-}
-
-function detenerModoBaifo(){
-  modoBaifoActivo = false;
-  conversacionActiva = false;
-  baifoHablando = false;
-  reiniciando = false;
-
-  if(reconocimientoBaifo){
-    try{
-      reconocimientoBaifo.onend = null;
-      reconocimientoBaifo.onresult = null;
-      reconocimientoBaifo.onerror = null;
-      reconocimientoBaifo.stop();
-    }catch(e){}
-  }
-
-  reconocimientoBaifo = null;
-
-  speechSynthesis.cancel();
-
-  if(audioBaifo){
-    audioBaifo.pause();
-    audioBaifo.currentTime = 0;
-    audioBaifo = null;
-  }
-
-  if(vozAbortController){
-    vozAbortController.abort();
-    vozAbortController = null;
-  }
-
-  document.getElementById("estado").textContent = "Baifo está apagado.";
-}
-
-function limpiarChat(){
-  document.getElementById('chat').innerHTML="";
-}
-</script>
-
+    leerEstado();
+  </script>
 </body>
 </html>

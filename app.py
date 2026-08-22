@@ -32,6 +32,63 @@ RUTA_ULTIMO_AUDIO = os.path.join(AUDIO_DIR, NOMBRE_ULTIMO_AUDIO)
 os.makedirs(AUDIO_DIR, exist_ok=True)
 
 
+# ==========================================================
+# CONTROL VIRTUAL ON/OFF DE BAIFO
+# El HTML escribe el estado aquí y el ESP32 lo consulta.
+# ==========================================================
+
+CONTROL_BAIFO_PATH = os.path.join(BASE_DIR, "baifo_control.json")
+
+
+def leer_control_baifo():
+    try:
+        with open(CONTROL_BAIFO_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return bool(data.get("activo", False))
+    except Exception:
+        return False
+
+
+def guardar_control_baifo(activo):
+    temporal = CONTROL_BAIFO_PATH + ".tmp"
+
+    with open(temporal, "w", encoding="utf-8") as f:
+        json.dump({"activo": bool(activo)}, f)
+
+    os.replace(temporal, CONTROL_BAIFO_PATH)
+
+
+@app.route("/baifo/control", methods=["GET", "POST"])
+def control_baifo():
+    if request.method == "POST":
+        data = request.get_json(silent=True) or {}
+
+        if "activo" not in data:
+            return jsonify({
+                "estado": "error",
+                "mensaje": "Falta el campo activo"
+            }), 400
+
+        activo = bool(data.get("activo"))
+        guardar_control_baifo(activo)
+
+        print(
+            "CONTROL BAIFO:",
+            "ENCENDIDO" if activo else "APAGADO"
+        )
+
+        return jsonify({
+            "estado": "ok",
+            "activo": activo
+        })
+
+    return jsonify({
+        "estado": "ok",
+        "activo": leer_control_baifo()
+    })
+
+
+
 def extraer_pregunta_activada(texto):
     """
     Detecta "Hey Baifo" u "Oye Baifo" y variantes comunes
