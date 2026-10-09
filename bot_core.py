@@ -1,3 +1,4 @@
+
 import requests
 import datetime
 from zoneinfo import ZoneInfo
@@ -7,7 +8,10 @@ import os
 APP_TZ = os.getenv("APP_TZ", "America/Asuncion")
 
 # ===== OpenWeather =====
-API_KEY_OPENWEATHER = os.getenv("OPENWEATHER_API_KEY", "16ceddd5179d3a1b145b79e7785b1f8f")
+API_KEY_OPENWEATHER = os.getenv(
+    "OPENWEATHER_API_KEY",
+    "16ceddd5179d3a1b145b79e7785b1f8f"
+)
 CIUDAD_POR_DEFECTO = "Pilar"
 
 # ===== OpenAI =====
@@ -19,21 +23,46 @@ mensajes = [
     {
         "role": "system",
         "content": """
-Eres Baifo, un asistente de voz inteligente creado por estudiantes del tercero Informática del Colegio Juan 23.
+Eres Baifo, un asistente de voz inteligente creado
+por estudiantes del tercero Informática del
+Colegio Juan 23.
 
 Tu nombre es Baifo.
-Si te preguntan cómo te llamas, responde que te llamas Baifo.
-Si te preguntan quién eres, responde que eres Baifo, un asistente de voz inteligente.
+Si te preguntan cómo te llamas, responde que te
+llamas Baifo.
+Si te preguntan quién eres, responde que eres
+Baifo, un asistente de voz inteligente.
 Nunca digas que tu nombre es Botsito.
 
-Respondé:
-- Claro
-- Natural
-- Directo
-- Máximo 2 o 3 oraciones salvo que pidan explicación
+REGLAS PARA RESPONDER:
+
+- Responde siempre en español.
+- Utiliza un lenguaje claro, natural y directo.
+- Responde preferentemente en dos oraciones cortas.
+- Tus respuestas deben tener aproximadamente
+  entre 10 y 25 palabras en total.
+- Evita superar las 25 palabras, incluso cuando
+  te pidan explicaciones o resúmenes.
+- Si te preguntan algo sencillo, responde
+  directamente, sin agregar información innecesaria.
+- Si te piden resumir una obra literaria, explica
+  brevemente el protagonista y el conflicto principal.
+- Si te piden explicar un tema complejo, menciona
+  solamente los puntos más importantes.
+- No utilices introducciones largas ni despedidas.
+- No repitas la pregunta del usuario.
+- No enumeres varios párrafos.
+- Conserva siempre la exactitud de la información.
+- Si una respuesta requiere más detalles para ser
+  correcta, prioriza la exactitud y sé conciso.
+
+Recuerda: tus respuestas serán reproducidas por
+un parlante conectado a un ESP32. Por eso deben
+ser breves y fáciles de escuchar.
 """
     }
 ]
+
 ultima_respuesta = ""
 
 
@@ -44,8 +73,9 @@ def ahora_local():
 def obtener_clima(ciudad):
     try:
         url = (
-            f"http://api.openweathermap.org/data/2.5/weather"
-            f"?q={ciudad}&appid={API_KEY_OPENWEATHER}&lang=es&units=metric"
+            "http://api.openweathermap.org/data/2.5/weather"
+            f"?q={ciudad}&appid={API_KEY_OPENWEATHER}"
+            "&lang=es&units=metric"
         )
 
         resp = requests.get(url, timeout=10)
@@ -68,7 +98,10 @@ def obtener_clima(ciudad):
 
 
 def es_calculo(pregunta):
-    return re.match(r"^[0-9x+\-*/^().,\s=]+$", pregunta.replace(",", "."))
+    return re.match(
+        r"^[0-9x+\-*/^().,\s=]+$",
+        pregunta.replace(",", ".")
+    )
 
 
 def resolver_calculo(pregunta):
@@ -79,9 +112,15 @@ def resolver_calculo(pregunta):
         expresion = expresion.replace("x", "*")
         expresion = expresion.replace("=", "")
 
-        resultado = eval(expresion, {"__builtins__": None}, {})
+        resultado = eval(
+            expresion,
+            {"__builtins__": None},
+            {}
+        )
+
         return f"El resultado es {resultado}."
-    except:
+
+    except Exception:
         return None
 
 
@@ -124,9 +163,13 @@ def responder(pregunta: str, forzar_ia=False) -> str:
         if resultado:
             return resultado
 
-    # ===== IA =====
+    # ===== INTELIGENCIA ARTIFICIAL =====
 
-    mensajes.append({"role": "user", "content": pregunta})
+    mensajes.append({
+        "role": "user",
+        "content": pregunta
+    })
+
     recortar_historial()
 
     headers = {
@@ -138,14 +181,29 @@ def responder(pregunta: str, forzar_ia=False) -> str:
         "model": MODEL_OPENAI,
         "messages": mensajes,
         "temperature": 0.4,
-        "max_tokens": 180 #
+
+        # Reducido para generar respuestas
+        # mas cortas que antes.
+        "max_tokens": 90
     }
 
     try:
-        r = requests.post(API_URL_OPENAI, json=body, headers=headers)
-        respuesta = r.json()["choices"][0]["message"]["content"].strip()
+        r = requests.post(
+            API_URL_OPENAI,
+            json=body,
+            headers=headers
+        )
 
-        mensajes.append({"role": "assistant", "content": respuesta})
+        respuesta = (
+            r.json()["choices"][0]["message"]["content"]
+            .strip()
+        )
+
+        mensajes.append({
+            "role": "assistant",
+            "content": respuesta
+        })
+
         ultima_respuesta = respuesta
 
         return respuesta
