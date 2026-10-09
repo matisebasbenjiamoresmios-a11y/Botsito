@@ -184,7 +184,7 @@ def responder(pregunta: str, forzar_ia=False) -> str:
 
         # Reducido para generar respuestas
         # mas cortas que antes.
-        "max_tokens": 90
+        "max_tokens": 250
     }
 
     try:
