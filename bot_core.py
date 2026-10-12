@@ -1,137 +1,167 @@
 
-import requests
-import datetime
-from zoneinfo import ZoneInfo
-import re
 import os
+import re
+import ast
+import operator
+import datetime
+import requests
+from zoneinfo import ZoneInfo
+from openai import OpenAI
 
 APP_TZ = os.getenv("APP_TZ", "America/Asuncion")
+CIUDAD_POR_DEFECTO = os.getenv("BAIFO_CIUDAD", "Pilar")
+API_KEY_OPENWEATHER = os.getenv("OPENWEATHER_API_KEY", "")
 
-# ===== OpenWeather =====
-API_KEY_OPENWEATHER = os.getenv(
-    "OPENWEATHER_API_KEY",
-    "16ceddd5179d3a1b145b79e7785b1f8f"
+# Modelo de respuestas. Se puede cambiar en Render.
+MODEL_OPENAI = os.getenv("BAIFO_GPT_MODEL", "gpt-4o-mini")
+
+client = OpenAI(
+    api_key=os.getenv("OPENAI_API_KEY"),
+    timeout=25.0,
+    max_retries=0
 )
-CIUDAD_POR_DEFECTO = "Pilar"
 
-# ===== OpenAI =====
-API_KEY_OPENAI = os.environ.get("OPENAI_API_KEY")
-API_URL_OPENAI = "https://api.openai.com/v1/chat/completions"
-MODEL_OPENAI = "gpt-4o-mini"
-
-mensajes = [
-    {
-        "role": "system",
-        "content": """
+INSTRUCCIONES = """
 Eres Baifo, un asistente de voz inteligente creado
 por estudiantes del tercero Informática del
 Colegio Juan 23.
 
 Tu nombre es Baifo.
-Si te preguntan cómo te llamas, responde que te
-llamas Baifo.
+Si te preguntan cómo te llamas, responde Baifo.
 Si te preguntan quién eres, responde que eres
 Baifo, un asistente de voz inteligente.
 Nunca digas que tu nombre es Botsito.
 
-REGLAS PARA RESPONDER:
-
+REGLAS:
 - Responde siempre en español.
-- Utiliza un lenguaje claro, natural y directo.
-- Responde preferentemente en dos oraciones cortas.
-- Tus respuestas deben tener aproximadamente
-  entre 10 y 25 palabras en total.
-- Evita superar las 25 palabras, incluso cuando
-  te pidan explicaciones o resúmenes.
-- Si te preguntan algo sencillo, responde
-  directamente, sin agregar información innecesaria.
-- Si te piden resumir una obra literaria, explica
-  brevemente el protagonista y el conflicto principal.
-- Si te piden explicar un tema complejo, menciona
-  solamente los puntos más importantes.
-- No utilices introducciones largas ni despedidas.
-- No repitas la pregunta del usuario.
-- No enumeres varios párrafos.
-- Conserva siempre la exactitud de la información.
-- Si una respuesta requiere más detalles para ser
-  correcta, prioriza la exactitud y sé conciso.
-
-Recuerda: tus respuestas serán reproducidas por
-un parlante conectado a un ESP32. Por eso deben
-ser breves y fáciles de escuchar.
+- Utiliza lenguaje claro, natural y directo.
+- Prefiere una o dos oraciones cortas.
+- Normalmente responde entre 10 y 25 palabras.
+- Si la pregunta es sencilla, responde directamente.
+- Evita introducciones y despedidas innecesarias.
+- No repitas la pregunta.
+- Prioriza la exactitud.
+- Si necesitas más palabras para ser correcto,
+  puedes utilizarlas.
+- Las respuestas se reproducirán por un parlante.
+- Evita símbolos difíciles de pronunciar.
 """
-    }
-]
 
+historial = []
 ultima_respuesta = ""
-
 
 def ahora_local():
     return datetime.datetime.now(ZoneInfo(APP_TZ))
 
-
 def obtener_clima(ciudad):
+    if not API_KEY_OPENWEATHER:
+        return "No tengo configurado el servicio del clima."
+
     try:
-        url = (
-            "http://api.openweathermap.org/data/2.5/weather"
-            f"?q={ciudad}&appid={API_KEY_OPENWEATHER}"
-            "&lang=es&units=metric"
+        r = requests.get(
+            "https://api.openweathermap.org/data/2.5/weather",
+            params={
+                "q": ciudad,
+                "appid": API_KEY_OPENWEATHER,
+                "lang": "es",
+                "units": "metric"
+            },
+            timeout=7
+        )
+        r.raise_for_status()
+        data = r.json()
+
+        temperatura = data["main"]["temp"]
+        descripcion = data["weather"][0]["description"]
+
+        return (
+            f"En {ciudad.title()} hay {descripcion}. "
+            f"La temperatura es de {temperatura} grados."
         )
 
-        resp = requests.get(url, timeout=10)
+    except Exception as e:
+        print(f"[BAIFO] Error clima: {e}", flush=True)
+        return "No pude consultar el clima en este momento."
 
-        if resp.status_code == 200:
-            data = resp.json()
-            temp = data["main"]["temp"]
-            desc = data["weather"][0]["description"]
-            sensacion = data["main"].get("feels_like", temp)
+OPERACIONES = {
+    ast.Add: operator.add,
+    ast.Sub: operator.sub,
+    ast.Mult: operator.mul,
+    ast.Div: operator.truediv,
+    ast.Pow: operator.pow,
+    ast.Mod: operator.mod,
+    ast.USub: operator.neg,
+    ast.UAdd: operator.pos
+}
 
-            return (
-                f"En {ciudad.title()} hay {desc}. "
-                f"La temperatura es {temp}°C, sensación {sensacion}°C."
-            )
+def calcular_seguro(nodo):
+    if isinstance(nodo, ast.Expression):
+        return calcular_seguro(nodo.body)
 
-        return f"No pude obtener el clima para {ciudad}."
+    if isinstance(nodo, ast.Constant):
+        if type(nodo.value) in (int, float):
+            if abs(nodo.value) > 1000000:
+                raise ValueError("Numero demasiado grande")
+            return nodo.value
 
-    except Exception:
-        return "Error al consultar el clima."
+    if isinstance(nodo, ast.UnaryOp):
+        op = OPERACIONES.get(type(nodo.op))
+        if op:
+            return op(calcular_seguro(nodo.operand))
 
+    if isinstance(nodo, ast.BinOp):
+        op = OPERACIONES.get(type(nodo.op))
+        if op:
+            a = calcular_seguro(nodo.left)
+            b = calcular_seguro(nodo.right)
 
-def es_calculo(pregunta):
-    return re.match(
-        r"^[0-9x+\-*/^().,\s=]+$",
-        pregunta.replace(",", ".")
-    )
+            if isinstance(nodo.op, ast.Pow) and abs(b) > 10:
+                raise ValueError("Exponente demasiado grande")
 
+            resultado = op(a, b)
+
+            if abs(resultado) > 1000000000:
+                raise ValueError("Resultado demasiado grande")
+
+            return resultado
+
+    raise ValueError("Expresion no permitida")
 
 def resolver_calculo(pregunta):
-    try:
-        expresion = pregunta.lower()
-        expresion = expresion.replace(",", ".")
-        expresion = expresion.replace("^", "**")
-        expresion = expresion.replace("x", "*")
-        expresion = expresion.replace("=", "")
+    expresion = pregunta.strip().lower()
+    expresion = expresion.replace(",", ".")
+    expresion = expresion.replace("^", "**")
+    expresion = expresion.replace("×", "*")
+    expresion = expresion.replace("÷", "/")
 
-        resultado = eval(
-            expresion,
-            {"__builtins__": None},
-            {}
-        )
+    # Multiplicacion con x entre numeros.
+    expresion = re.sub(
+        r"(?<=\d)\s*x\s*(?=\d)",
+        "*",
+        expresion
+    )
+
+    if not re.fullmatch(r"[0-9+\-*/().\s]+", expresion):
+        return None
+
+    if len(expresion) > 70:
+        return None
+
+    try:
+        arbol = ast.parse(expresion, mode="eval")
+        resultado = calcular_seguro(arbol)
+
+        if isinstance(resultado, float) and resultado.is_integer():
+            resultado = int(resultado)
 
         return f"El resultado es {resultado}."
 
     except Exception:
         return None
 
-
-def recortar_historial():
-    global mensajes
-    mensajes = mensajes[-10:]
-
-
 def responder(pregunta: str, forzar_ia=False) -> str:
     global ultima_respuesta
-    global mensajes
+    global historial
 
     pregunta = (pregunta or "").strip()
 
@@ -140,77 +170,70 @@ def responder(pregunta: str, forzar_ia=False) -> str:
 
     p = pregunta.lower()
 
-    # ===== RESPUESTAS PERSONALIZADAS =====
+    # RESPUESTAS PERSONALIZADAS
+    if not forzar_ia:
+        if "peor jugador de padel" in p or "peor jugador de pádel" in p:
+            return "Gonzalo Pérez."
 
-    if "peor jugador de padel" in p:
-        return "Gonzalo Pérez."
+        if "como fuiste creado" in p or "cómo fuiste creado" in p:
+            return (
+                "Fui creado por estudiantes utilizando "
+                "Python, tecnología web y OpenAI."
+            )
 
-    if "como fuiste creado" in p:
-        return "Fui creado por estudiantes usando Python, web y OpenAI."
+        if re.search(r"\b(hora|horas)\b", p):
+            return ahora_local().strftime("Son las %H:%M.")
 
-    if "hora" in p:
-        return ahora_local().strftime("Son las %H:%M.")
+        if re.search(r"\b(dia|día|fecha)\b", p):
+            hoy = ahora_local()
+            return f"Hoy es {hoy:%d/%m/%Y}."
 
-    if re.search(r"\b(dia|día|fecha)\b", p):
-        hoy = ahora_local()
-        return f"Hoy es {hoy:%d/%m/%Y}."
+        if re.search(r"\b(clima|temperatura|tiempo)\b", p):
+            return obtener_clima(CIUDAD_POR_DEFECTO)
 
-    if "clima" in p:
-        return obtener_clima(CIUDAD_POR_DEFECTO)
-
-    if es_calculo(p):
         resultado = resolver_calculo(p)
-        if resultado:
+        if resultado is not None:
             return resultado
 
-    # ===== INTELIGENCIA ARTIFICIAL =====
-
-    mensajes.append({
-        "role": "user",
-        "content": pregunta
-    })
-
-    recortar_historial()
-
-    headers = {
-        "Authorization": f"Bearer {API_KEY_OPENAI}",
-        "Content-Type": "application/json"
-    }
-
-    body = {
-        "model": MODEL_OPENAI,
-        "messages": mensajes,
-        "temperature": 0.4,
-
-        # Reducido para generar respuestas
-        # mas cortas que antes.
-        "max_tokens": 250
-    }
+    # GPT
+    mensajes = [
+        {"role": "system", "content": INSTRUCCIONES}
+    ] + historial[-6:] + [
+        {"role": "user", "content": pregunta}
+    ]
 
     try:
-        r = requests.post(
-            API_URL_OPENAI,
-            json=body,
-            headers=headers
+        print(
+            f"[BAIFO GPT] Modelo: {MODEL_OPENAI}",
+            flush=True
+        )
+
+        respuesta_api = client.chat.completions.create(
+            model=MODEL_OPENAI,
+            messages=mensajes,
+            max_completion_tokens=120
         )
 
         respuesta = (
-            r.json()["choices"][0]["message"]["content"]
-            .strip()
-        )
+            respuesta_api.choices[0].message.content or ""
+        ).strip()
 
-        mensajes.append({
-            "role": "assistant",
-            "content": respuesta
-        })
+        if not respuesta:
+            respuesta = "No pude generar una respuesta."
 
+        historial.extend([
+            {"role": "user", "content": pregunta},
+            {"role": "assistant", "content": respuesta}
+        ])
+
+        historial = historial[-6:]
         ultima_respuesta = respuesta
 
         return respuesta
 
     except Exception as e:
-        return f"Error IA: {e}"
-
+        print(f"[BAIFO GPT] ERROR: {e}", flush=True)
+        return "No pude comunicarme con la inteligencia artificial."
 
 def responder_pregunta(pregunta, forzar_ia=False):
     return responder(pregunta, forzar_ia)

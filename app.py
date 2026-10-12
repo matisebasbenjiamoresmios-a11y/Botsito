@@ -1,147 +1,125 @@
-from flask import Flask, request, jsonify, send_file, make_response, Response, stream_with_context
-import requests
-import wave
-import json
-import os
-import PyPDF2
-import docx
-import tempfile
-import re
-from array import array
-from openai import OpenAI
 
+from flask import (
+    Flask, request, jsonify, send_file,
+    make_response, Response, stream_with_context
+)
+import os
+import re
+import json
+import wave
+import time
+import tempfile
+import requests
+from array import array
+from threading import Lock
+from openai import OpenAI
 
 app = Flask(__name__)
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+AUDIO_DIR = os.path.join(BASE_DIR, "tts")
+UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
+
+os.makedirs(AUDIO_DIR, exist_ok=True)
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-MODEL_OPENAI = "gpt-4o-mini"
-
-TTS_MODEL = "gpt-4o-mini-tts"
-
-TTS_VOICE = "alloy"
-
+MODEL_OPENAI = os.getenv(
+    "BAIFO_GPT_MODEL", "gpt-4o-mini"
+)
+TTS_MODEL = os.getenv(
+    "BAIFO_TTS_MODEL", "tts-1"
+)
+TTS_VOICE = os.getenv(
+    "BAIFO_TTS_VOICE", "alloy"
+)
+TRANSCRIBE_MODEL = os.getenv(
+    "BAIFO_TRANSCRIBE_MODEL",
+    "gpt-4o-mini-transcribe"
+)
 
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
-
 ELEVENLABS_VOICE_ID = os.getenv(
     "ELEVENLABS_VOICE_ID",
     "xf3Xv0R9rgFTExG0MVNo"
 )
 
-
-client = OpenAI(api_key=OPENAI_API_KEY)
-
-
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-
-AUDIO_DIR = os.path.join(BASE_DIR, "tts")
+client = OpenAI(
+    api_key=OPENAI_API_KEY,
+    timeout=45.0,
+    max_retries=0
+)
 
 NOMBRE_ULTIMO_AUDIO = "ultima_respuesta.mp3"
-
 RUTA_ULTIMO_AUDIO = os.path.join(
-    AUDIO_DIR,
-    NOMBRE_ULTIMO_AUDIO
+    AUDIO_DIR, NOMBRE_ULTIMO_AUDIO
 )
-
-
-os.makedirs(AUDIO_DIR, exist_ok=True)
-
-
-# ==========================================================
-# CONTROL VIRTUAL ON/OFF DE BAIFO
-# El HTML escribe el estado aquí y el ESP32 lo consulta.
-# ==========================================================
-
 CONTROL_BAIFO_PATH = os.path.join(
-    BASE_DIR,
-    "baifo_control.json"
+    BASE_DIR, "baifo_control.json"
 )
 
+control_lock = Lock()
+audio_lock = Lock()
+
+def log(mensaje):
+    print(mensaje, flush=True)
+
+def eliminar_archivo_si_existe(ruta):
+    try:
+        if os.path.isfile(ruta):
+            os.remove(ruta)
+    except OSError as e:
+        log(f"[BAIFO] Error eliminando archivo: {e}")
 
 def leer_control_baifo():
-
     try:
-
-        with open(
-            CONTROL_BAIFO_PATH,
-            "r",
-            encoding="utf-8"
-        ) as f:
-
-            data = json.load(f)
-
-        return bool(
-            data.get("activo", False)
-        )
-
+        with control_lock:
+            with open(
+                CONTROL_BAIFO_PATH,
+                "r",
+                encoding="utf-8"
+            ) as f:
+                data = json.load(f)
+        return bool(data.get("activo", False))
     except Exception:
-
         return False
 
-
 def guardar_control_baifo(activo):
+    temporal = CONTROL_BAIFO_PATH + ".tmp"
 
-    temporal = (
-        CONTROL_BAIFO_PATH + ".tmp"
-    )
+    with control_lock:
+        with open(
+            temporal, "w", encoding="utf-8"
+        ) as f:
+            json.dump({"activo": bool(activo)}, f)
 
-    with open(
-        temporal,
-        "w",
-        encoding="utf-8"
-    ) as f:
+        os.replace(temporal, CONTROL_BAIFO_PATH)
 
-        json.dump(
-            {
-                "activo": bool(activo)
-            },
-            f
-        )
-
-    os.replace(
-        temporal,
-        CONTROL_BAIFO_PATH
-    )
-
-
-@app.route(
-    "/baifo/control",
-    methods=["GET", "POST"]
-)
+@app.route("/baifo/control", methods=["GET", "POST"])
 def control_baifo():
-
     if request.method == "POST":
-
-        data = (
-            request.get_json(
-                silent=True
-            )
-            or {}
-        )
+        data = request.get_json(silent=True) or {}
 
         if "activo" not in data:
-
             return jsonify({
                 "estado": "error",
                 "mensaje": "Falta el campo activo"
             }), 400
 
-        activo = bool(
-            data.get("activo")
-        )
+        activo = data["activo"]
 
-        guardar_control_baifo(
-            activo
-        )
+        if not isinstance(activo, bool):
+            return jsonify({
+                "estado": "error",
+                "mensaje": "activo debe ser verdadero o falso"
+            }), 400
 
-        print(
-            "CONTROL BAIFO:",
-            "ENCENDIDO"
-            if activo
-            else "APAGADO"
+        guardar_control_baifo(activo)
+
+        log(
+            "[BAIFO CONTROL] " +
+            ("ENCENDIDO" if activo else "APAGADO")
         )
 
         return jsonify({
@@ -154,139 +132,65 @@ def control_baifo():
         "activo": leer_control_baifo()
     })
 
-
-# ==========================================================
-# DETECCIÓN DE ACTIVACIÓN
-# ==========================================================
-
 def extraer_pregunta_activada(texto):
-
-    """
-    Detecta "Hey Baifo" u "Oye Baifo"
-    y variantes comunes producidas por
-    la transcripción.
-
-    Devuelve:
-    (activado, pregunta)
-    """
-
-    texto = (
-        texto or ""
-    ).strip()
-
-    if not texto:
-
-        return False, ""
+    texto = (texto or "").strip()
 
     patron = re.compile(
         r"\b(?:hey|ey|oye|hoy)\b"
         r"[\s,.;:¡!¿?\-]*"
-        r"(?:baifo|waifo|weifo|wifo|wifi|wi[\s-]?fi|guifo|byfo|vaifo|bifo)\b",
+        r"(?:baifo|waifo|weifo|wifo|wifi|wi[\s-]?fi|"
+        r"guifo|byfo|vaifo|bifo)\b",
         re.IGNORECASE
     )
 
-    coincidencia = patron.search(
-        texto
-    )
+    coincidencia = patron.search(texto)
 
     if not coincidencia:
-
         return False, ""
 
-    pregunta = texto[
-        coincidencia.end():
-    ].strip(
+    pregunta = texto[coincidencia.end():].strip(
         " \t\r\n,.;:¿?¡!-"
     )
 
     return True, pregunta
-
-
-# ==========================================================
-# AMPLIFICACIÓN PCM
-# ==========================================================
 
 def amplificar_pcm16(
     datos_pcm,
     objetivo_pico=24000,
     ganancia_maxima=12.0
 ):
-
-    """
-    Normaliza audio PCM mono de 16 bits
-    sin usar librerías externas.
-    """
-
     if not datos_pcm:
-
-        return (
-            datos_pcm,
-            0,
-            0,
-            1.0
-        )
+        return datos_pcm, 0, 0, 1.0
 
     muestras = array("h")
-
-    muestras.frombytes(
-        datos_pcm
-    )
+    muestras.frombytes(datos_pcm)
 
     if os.sys.byteorder != "little":
-
         muestras.byteswap()
 
     pico_original = max(
-        (
-            abs(int(m))
-            for m in muestras
-        ),
+        (abs(int(m)) for m in muestras),
         default=0
     )
 
     if pico_original == 0:
-
-        return (
-            datos_pcm,
-            0,
-            0,
-            1.0
-        )
+        return datos_pcm, 0, 0, 1.0
 
     ganancia = min(
         ganancia_maxima,
-        objetivo_pico /
-        pico_original
+        objetivo_pico / pico_original
     )
 
-    for i, muestra in enumerate(
-        muestras
-    ):
-
-        valor = int(
-            muestra * ganancia
-        )
-
-        if valor > 32767:
-
-            valor = 32767
-
-        elif valor < -32768:
-
-            valor = -32768
-
-        muestras[i] = valor
+    for i, muestra in enumerate(muestras):
+        valor = int(muestra * ganancia)
+        muestras[i] = max(-32768, min(32767, valor))
 
     pico_final = max(
-        (
-            abs(int(m))
-            for m in muestras
-        ),
+        (abs(int(m)) for m in muestras),
         default=0
     )
 
     if os.sys.byteorder != "little":
-
         muestras.byteswap()
 
     return (
@@ -296,781 +200,374 @@ def amplificar_pcm16(
         ganancia
     )
 
-
-def eliminar_archivo_si_existe(
-    ruta
-):
-
-    if os.path.exists(ruta):
-
-        os.remove(ruta)
-
-
-# ==========================================================
-# PÁGINA PRINCIPAL
-# ==========================================================
-
 @app.route("/")
 def index():
+    ruta = os.path.join(BASE_DIR, "index.html")
 
-    resp = make_response(
-        send_file(
-            os.path.join(
-                BASE_DIR,
-                "index.html"
-            )
-        )
-    )
+    if not os.path.isfile(ruta):
+        return jsonify({
+            "estado": "ok",
+            "mensaje": "Servidor Baifo activo"
+        })
 
-    resp.headers[
-        "Cache-Control"
-    ] = (
-        "no-store, no-cache, "
-        "must-revalidate, max-age=0"
-    )
-
-    resp.headers[
-        "Pragma"
-    ] = "no-cache"
-
-    resp.headers[
-        "Expires"
-    ] = "0"
-
+    resp = make_response(send_file(ruta))
+    resp.headers["Cache-Control"] = "no-store"
     return resp
 
-
-# ==========================================================
-# STREAMING
-# ==========================================================
-
-@app.route(
-    "/stream",
-    methods=["POST"]
-)
-def stream():
-
-    data = request.get_json()
-
-    pregunta = (
-        data or {}
-    ).get(
-        "pregunta",
-        ""
-    )
-
-    def generar():
-
-        try:
-
-            stream_openai = (
-                client.chat.completions.create(
-                    model=MODEL_OPENAI,
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": (
-                                "Respondé corto, claro y natural. "
-                                "Si el usuario pide código, generá el código "
-                                "ordenado en bloques con triple comilla ``` "
-                                "y no agregues explicación larga salvo que la pidan."
-                            )
-                        },
-                        {
-                            "role": "user",
-                            "content": pregunta
-                        }
-                    ],
-                    stream=True,
-                    max_tokens=200
-                )
-            )
-
-            for chunk in stream_openai:
-
-                if (
-                    chunk
-                    .choices[0]
-                    .delta
-                    .content
-                ):
-
-                    yield (
-                        chunk
-                        .choices[0]
-                        .delta
-                        .content
-                    )
-
-        except Exception as e:
-
-            yield f"Error: {e}"
-
-    return Response(
-        stream_with_context(
-            generar()
-        ),
-        mimetype="text/plain"
-    )
-
-
-# ==========================================================
-# PREGUNTAR
-# ==========================================================
-
-@app.route(
-    "/preguntar",
-    methods=["POST"]
-)
-def ask():
-
-    data = request.get_json()
-
-    user_msg = (
-        data or {}
-    ).get(
-        "pregunta",
-        ""
-    )
-
-    from bot_core import responder_pregunta
-
-    bot_reply = responder_pregunta(
-        user_msg
-    )
-
-    return jsonify({
-        "respuesta": bot_reply
-    })
-
-
-# ==========================================================
-# PING
-# ==========================================================
-
-@app.route(
-    "/ping",
-    methods=["GET"]
-)
+@app.route("/ping")
 def ping():
-
     return jsonify({
         "estado": "ok",
         "mensaje": "Hola ESP32"
     })
 
+@app.route("/preguntar", methods=["POST"])
+def preguntar():
+    from bot_core import responder_pregunta
 
-# ==========================================================
-# VOZ
-# ==========================================================
+    data = request.get_json(silent=True) or {}
+    pregunta = str(data.get("pregunta", ""))
 
-@app.route(
-    "/voz",
-    methods=["POST"]
-)
-def voz():
+    respuesta = responder_pregunta(pregunta)
 
-    data = request.get_json()
+    return jsonify({"respuesta": respuesta})
 
-    texto = (
-        data or {}
-    ).get(
-        "texto",
-        ""
-    ).strip()
+@app.route("/stream", methods=["POST"])
+def stream():
+    data = request.get_json(silent=True) or {}
+    pregunta = str(data.get("pregunta", ""))
 
-    if not texto:
-
-        return jsonify({
-            "error": "Texto vacío"
-        }), 400
-
-    if ELEVENLABS_API_KEY:
-
-        url = (
-            "https://api.elevenlabs.io/"
-            "v1/text-to-speech/"
-            f"{ELEVENLABS_VOICE_ID}"
-        )
-
-        headers = {
-            "xi-api-key":
-                ELEVENLABS_API_KEY,
-
-            "Content-Type":
-                "application/json",
-
-            "Accept":
-                "audio/mpeg"
-        }
-
-        body = {
-
-            "text": texto,
-
-            "model_id":
-                "eleven_multilingual_v2",
-
-            "voice_settings": {
-
-                "stability":
-                    0.55,
-
-                "similarity_boost":
-                    0.85,
-
-                "style":
-                    0.25,
-
-                "use_speaker_boost":
-                    True
-            }
-        }
-
-        r = requests.post(
-            url,
-            json=body,
-            headers=headers,
-            timeout=60
-        )
-
-        if r.status_code != 200:
-
-            return jsonify({
-                "error": r.text
-            }), 500
-
-        temp_file = (
-            tempfile.NamedTemporaryFile(
-                delete=False,
-                suffix=".mp3"
+    def generar():
+        try:
+            flujo = client.chat.completions.create(
+                model=MODEL_OPENAI,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "Eres Baifo. Responde en español, "
+                            "de forma breve, clara y natural."
+                        )
+                    },
+                    {
+                        "role": "user",
+                        "content": pregunta
+                    }
+                ],
+                max_completion_tokens=200,
+                stream=True
             )
-        )
 
-        temp_file.write(
-            r.content
-        )
+            for chunk in flujo:
+                contenido = chunk.choices[0].delta.content
+                if contenido:
+                    yield contenido
 
-        temp_file.close()
+        except Exception as e:
+            log(f"[BAIFO STREAM] ERROR: {e}")
+            yield "No pude generar la respuesta."
 
-        return send_file(
-            temp_file.name,
-            mimetype="audio/mpeg"
-        )
-
-    speech = (
-        client.audio.speech.create(
-            model=TTS_MODEL,
-            voice=TTS_VOICE,
-            input=texto
-        )
+    return Response(
+        stream_with_context(generar()),
+        mimetype="text/plain"
     )
 
-    temp_file = (
-        tempfile.NamedTemporaryFile(
+def generar_mp3(texto):
+    inicio = time.monotonic()
+
+    # Para el ESP32 usamos el TTS de OpenAI.
+    # Sin reintentos automáticos.
+    speech = client.with_options(
+        timeout=45.0,
+        max_retries=0
+    ).audio.speech.create(
+        model=TTS_MODEL,
+        voice=TTS_VOICE,
+        input=texto,
+        response_format="mp3"
+    )
+
+    duracion = time.monotonic() - inicio
+
+    log(
+        f"[BAIFO TIEMPOS] TTS ({TTS_MODEL}): "
+        f"{duracion:.2f} s"
+    )
+
+    return speech.content
+
+def guardar_mp3(datos):
+    if not datos:
+        raise ValueError("El MP3 generado esta vacio")
+
+    temporal = RUTA_ULTIMO_AUDIO + ".tmp"
+
+    with audio_lock:
+        with open(temporal, "wb") as f:
+            f.write(datos)
+
+        os.replace(temporal, RUTA_ULTIMO_AUDIO)
+
+    log(f"[BAIFO] MP3 guardado: {len(datos)} bytes")
+
+@app.route("/voz", methods=["POST"])
+def voz():
+    data = request.get_json(silent=True) or {}
+    texto = str(data.get("texto", "")).strip()
+
+    if not texto:
+        return jsonify({"error": "Texto vacío"}), 400
+
+    try:
+        if ELEVENLABS_API_KEY:
+            url = (
+                "https://api.elevenlabs.io/v1/"
+                "text-to-speech/" + ELEVENLABS_VOICE_ID
+            )
+
+            r = requests.post(
+                url,
+                headers={
+                    "xi-api-key": ELEVENLABS_API_KEY,
+                    "Content-Type": "application/json",
+                    "Accept": "audio/mpeg"
+                },
+                json={
+                    "text": texto,
+                    "model_id": "eleven_multilingual_v2"
+                },
+                timeout=45
+            )
+            r.raise_for_status()
+            datos = r.content
+        else:
+            datos = generar_mp3(texto)
+
+        temporal = tempfile.NamedTemporaryFile(
             delete=False,
             suffix=".mp3"
         )
-    )
+        temporal.write(datos)
+        temporal.close()
 
-    temp_file.write(
-        speech.content
-    )
+        respuesta = send_file(
+            temporal.name,
+            mimetype="audio/mpeg"
+        )
+        respuesta.call_on_close(
+            lambda: eliminar_archivo_si_existe(
+                temporal.name
+            )
+        )
+        return respuesta
 
-    temp_file.close()
+    except Exception as e:
+        log(f"[BAIFO VOZ] ERROR: {e}")
+        return jsonify({
+            "error": "No se pudo generar la voz"
+        }), 500
 
-    return send_file(
-        temp_file.name,
-        mimetype="audio/mpeg"
-    )
-
-
-# ==========================================================
-# RECIBIR AUDIO DESDE ESP32
-# ==========================================================
-
-@app.route(
-    "/audio",
-    methods=["POST"]
-)
+@app.route("/audio", methods=["POST"])
 def recibir_audio():
+    inicio_total = time.monotonic()
 
-    session = request.args.get(
-        "session"
-    )
+    session = request.args.get("session", "")
+    final = request.args.get("final", "0")
 
-    final = request.args.get(
-        "final",
-        "0"
-    )
-
-    if not session:
-
+    # Evitar rutas de archivo peligrosas
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,100}", session):
         return jsonify({
             "estado": "error",
-            "mensaje": "Falta session"
+            "mensaje": "Session invalida"
         }), 400
 
     audio = request.get_data()
 
     if not audio:
-
         return jsonify({
             "estado": "error",
             "mensaje": "No se recibieron datos"
         }), 400
 
-    os.makedirs(
-        "uploads",
-        exist_ok=True
-    )
-
     raw_path = os.path.join(
-        "uploads",
-        f"{session}.raw"
+        UPLOAD_DIR, session + ".raw"
+    )
+    wav_path = os.path.join(
+        UPLOAD_DIR, session + ".wav"
     )
 
-    # Agregar el bloque recibido
-
-    with open(
-        raw_path,
-        "ab"
-    ) as f:
-
+    # Permite tanto el envío completo del ESP32
+    # como los envíos antiguos por bloques.
+    with open(raw_path, "ab") as f:
         f.write(audio)
 
-    # Si todavía no terminó la grabación,
-    # solamente confirmar recepción.
-
     if final != "1":
-
         return jsonify({
             "estado": "recibiendo",
             "mensaje": "Bloque recibido"
         })
 
-    wav_path = os.path.join(
-        "uploads",
-        f"{session}.wav"
-    )
-
-    with open(
-        raw_path,
-        "rb"
-    ) as raw:
-
-        datos_raw = raw.read()
-
-    (
-        datos_amplificados,
-        pico_original,
-        pico_final,
-        ganancia_aplicada
-    ) = amplificar_pcm16(
-        datos_raw
-    )
-
-    with wave.open(
-        wav_path,
-        "wb"
-    ) as wav:
-
-        wav.setnchannels(1)
-
-        wav.setsampwidth(2)
-
-        wav.setframerate(
-            16000
-        )
-
-        wav.writeframes(
-            datos_amplificados
-        )
-
     try:
+        with open(raw_path, "rb") as f:
+            datos_raw = f.read()
 
-        print(
-            f"Archivo WAV: {wav_path}"
-        )
-
-        with open(
-            wav_path,
-            "rb"
-        ) as f:
-
-            transcripcion = (
-                client.audio.transcriptions.create(
-                    model=
-                        "gpt-4o-mini-transcribe",
-
-                    file=f,
-
-                    language="es"
-                )
-            )
-
-        texto_transcrito = (
-            transcripcion.text
-            or ""
-        ).strip()
-
-        # Nunca enviar a GPT una
-        # transcripción vacía.
-
-        if not texto_transcrito:
-
-            print(
-                "\n=============================="
-            )
-
-            print(
-                "DIAGNÓSTICO WHISPER"
-            )
-
-            print(
-                "=============================="
-            )
-
-            print(
-                f"Tamaño WAV: "
-                f"{os.path.getsize(wav_path)} bytes"
-            )
-
-            print(
-                f"Pico original PCM: "
-                f"{pico_original}"
-            )
-
-            print(
-                f"Ganancia aplicada: "
-                f"{ganancia_aplicada:.2f}x"
-            )
-
-            print(
-                f"Pico final PCM: "
-                f"{pico_final}"
-            )
-
-            print(
-                "Texto recibido: ''"
-            )
-
-            print(
-                "==============================\n"
-            )
-
-            eliminar_archivo_si_existe(
-                raw_path
-            )
-
-            eliminar_archivo_si_existe(
-                wav_path
-            )
-
+        if len(datos_raw) < 3200:
             return jsonify({
-
-                "estado":
-                    "sin_audio",
-
-                "transcripcion":
-                    "",
-
-                "mensaje":
-                    "Whisper no detectó ninguna voz"
-
+                "estado": "sin_audio",
+                "mensaje": "Audio demasiado corto"
             })
 
-        print(
-            "\n=============================="
+        (
+            datos_amplificados,
+            pico_original,
+            pico_final,
+            ganancia
+        ) = amplificar_pcm16(datos_raw)
+
+        with wave.open(wav_path, "wb") as wav:
+            wav.setnchannels(1)
+            wav.setsampwidth(2)
+            wav.setframerate(16000)
+            wav.writeframes(datos_amplificados)
+
+        log("==============================")
+        log("[BAIFO] AUDIO RECIBIDO")
+        log(f"Archivo WAV: {wav_path}")
+        log(f"Bytes WAV: {os.path.getsize(wav_path)}")
+        log(f"Pico original: {pico_original}")
+        log(f"Ganancia: {ganancia:.2f}x")
+        log(f"Pico final: {pico_final}")
+        log("==============================")
+
+        # 1. TRANSCRIPCION
+        inicio = time.monotonic()
+
+        with open(wav_path, "rb") as f:
+            transcripcion = client.with_options(
+                timeout=35.0,
+                max_retries=0
+            ).audio.transcriptions.create(
+                model=TRANSCRIBE_MODEL,
+                file=f,
+                language="es"
+            )
+
+        segundos_whisper = time.monotonic() - inicio
+
+        log(
+            f"[BAIFO TIEMPOS] Whisper: "
+            f"{segundos_whisper:.2f} s"
         )
 
-        print(
-            "DIAGNÓSTICO WHISPER"
+        texto_transcrito = (
+            transcripcion.text or ""
+        ).strip()
+
+        log(
+            f"[BAIFO] Texto recibido: "
+            f"{texto_transcrito!r}"
         )
 
-        print(
-            "=============================="
-        )
+        if not texto_transcrito:
+            return jsonify({
+                "estado": "sin_audio",
+                "transcripcion": "",
+                "mensaje": "No se detecto ninguna voz"
+            })
 
-        print(
-            f"Tamaño WAV: "
-            f"{os.path.getsize(wav_path)} bytes"
-        )
+        pregunta = texto_transcrito
 
-        print(
-            f"Pico original PCM: "
-            f"{pico_original}"
-        )
-
-        print(
-            f"Ganancia aplicada: "
-            f"{ganancia_aplicada:.2f}x"
-        )
-
-        print(
-            f"Pico final PCM: "
-            f"{pico_final}"
-        )
-
-        print(
-            f"Texto recibido: "
-            f"'{texto_transcrito}'"
-        )
-
-        print(
-            "==============================\n"
-        )
-
-        # Por ahora se procesa directamente
-        # todo lo que Whisper transcriba.
-        #
-        # No se exige "Hey Baifo" ni
-        # "Oye Baifo".
-
-        pregunta = (
-            texto_transcrito
-        )
-
+        # 2. GENERAR RESPUESTA
         from bot_core import responder_pregunta
 
-        print(
-            "\n=============================="
+        inicio = time.monotonic()
+
+        respuesta = responder_pregunta(pregunta)
+
+        segundos_gpt = time.monotonic() - inicio
+
+        log(
+            f"[BAIFO TIEMPOS] GPT: "
+            f"{segundos_gpt:.2f} s"
         )
 
-        print(
-            "DIAGNÓSTICO GPT"
-        )
+        log(f"[BAIFO] Respuesta: {respuesta!r}")
 
-        print(
-            "=============================="
-        )
+        # 3. GENERAR AUDIO MP3
+        datos_mp3 = generar_mp3(respuesta)
+        guardar_mp3(datos_mp3)
 
-        print(
-            f"Pregunta enviada a GPT: "
-            f"{pregunta!r}"
-        )
+        tiempo_total = time.monotonic() - inicio_total
 
-        print(
-            "==============================\n"
-        )
-
-        respuesta = (
-            responder_pregunta(
-                pregunta
-            )
-        )
-
-        speech = (
-            client.audio.speech.create(
-
-                model=TTS_MODEL,
-
-                voice=TTS_VOICE,
-
-                input=respuesta
-            )
-        )
-
-        # Guardar siempre la respuesta
-        # más reciente con el mismo nombre.
-        #
-        # Primero se escribe en un archivo
-        # temporal y luego se reemplaza para
-        # evitar que se sirva un MP3 incompleto.
-
-        ruta_temporal = (
-            RUTA_ULTIMO_AUDIO
-            + ".tmp"
-        )
-
-        with open(
-            ruta_temporal,
-            "wb"
-        ) as f:
-
-            f.write(
-                speech.content
-            )
-
-        os.replace(
-            ruta_temporal,
-            RUTA_ULTIMO_AUDIO
-        )
-
-        eliminar_archivo_si_existe(
-            raw_path
-        )
-
-        eliminar_archivo_si_existe(
-            wav_path
+        log(
+            f"[BAIFO TIEMPOS] TOTAL: "
+            f"{tiempo_total:.2f} s"
         )
 
         return jsonify({
-
-            "estado":
-                "ok",
-
-            "transcripcion":
-                texto_transcrito,
-
-            "pregunta":
-                pregunta,
-
-            "texto":
-                respuesta,
-
-            "audio":
-                request.host_url
-                + "tts/"
-                + NOMBRE_ULTIMO_AUDIO
+            "estado": "ok",
+            "transcripcion": texto_transcrito,
+            "pregunta": pregunta,
+            "texto": respuesta,
+            "audio": (
+                request.host_url.rstrip("/") +
+                "/tts/" + NOMBRE_ULTIMO_AUDIO
+            )
         })
 
-
-    # ======================================================
-    # CAMBIO NUEVO:
-    # MOSTRAR EL ERROR REAL EN LOS LOGS DE RENDER
-    # ======================================================
-
     except Exception as e:
-
-        print(
-            "\n=============================="
-        )
-
-        print(
-            "ERROR EN /audio"
-        )
-
-        print(
-            "=============================="
-        )
-
-        print(
-            "Tipo de error:",
-            type(e).__name__
-        )
-
-        print(
-            "Mensaje:",
-            str(e)
-        )
-
-        print(
-            "==============================\n",
-            flush=True
-        )
-
-        eliminar_archivo_si_existe(
-            raw_path
-        )
-
-        eliminar_archivo_si_existe(
-            wav_path
-        )
+        log("==============================")
+        log("[BAIFO] ERROR EN /audio")
+        log(f"Tipo: {type(e).__name__}")
+        log(f"Mensaje: {e}")
+        log("==============================")
 
         return jsonify({
-
-            "estado":
-                "error",
-
-            "mensaje":
-                str(e)
-
+            "estado": "error",
+            "mensaje": "Error procesando el audio"
         }), 500
 
+    finally:
+        eliminar_archivo_si_existe(raw_path)
+        eliminar_archivo_si_existe(wav_path)
 
-# ==========================================================
-# SERVIR ÚLTIMA RESPUESTA MP3
-# ==========================================================
-
-@app.route(
-    "/tts/ultima_respuesta.mp3"
-)
+@app.route("/tts/ultima_respuesta.mp3")
 def servir_ultima_respuesta():
-
-    if not os.path.isfile(
-        RUTA_ULTIMO_AUDIO
-    ):
-
+    if not os.path.isfile(RUTA_ULTIMO_AUDIO):
         return jsonify({
-
-            "estado":
-                "error",
-
-            "mensaje":
-                "Todavía no existe una respuesta de audio"
-
+            "estado": "error",
+            "mensaje": "Todavia no existe un MP3"
         }), 404
 
-    tamaño = os.path.getsize(
-        RUTA_ULTIMO_AUDIO
-    )
+    tamano = os.path.getsize(RUTA_ULTIMO_AUDIO)
 
-    print(
-        f"Sirviendo MP3: "
-        f"{tamaño} bytes"
-    )
-
-    if tamaño <= 0:
-
+    if tamano <= 0:
         return jsonify({
-
-            "estado":
-                "error",
-
-            "mensaje":
-                "El MP3 está vacío"
-
+            "estado": "error",
+            "mensaje": "El MP3 esta vacio"
         }), 500
 
-    respuesta_audio = (
-        make_response(
-            send_file(
+    log(f"[BAIFO] Sirviendo MP3: {tamano} bytes")
 
-                RUTA_ULTIMO_AUDIO,
-
-                mimetype=
-                    "audio/mpeg",
-
-                conditional=False
-            )
+    respuesta = make_response(
+        send_file(
+            RUTA_ULTIMO_AUDIO,
+            mimetype="audio/mpeg",
+            conditional=False
         )
     )
 
-    respuesta_audio.headers[
-        "Cache-Control"
-    ] = (
+    respuesta.headers["Cache-Control"] = (
         "no-store, no-cache, "
         "must-revalidate, max-age=0"
     )
+    respuesta.headers["Pragma"] = "no-cache"
+    respuesta.headers["Expires"] = "0"
 
-    respuesta_audio.headers[
-        "Pragma"
-    ] = "no-cache"
-
-    respuesta_audio.headers[
-        "Expires"
-    ] = "0"
-
-    respuesta_audio.headers[
-        "Content-Length"
-    ] = str(tamaño)
-
-    return respuesta_audio
-
-
-# ==========================================================
-# INICIAR SERVIDOR
-# ==========================================================
+    return respuesta
 
 if __name__ == "__main__":
-
-    port = int(
-        os.environ.get(
-            "PORT",
-            10000
-        )
-    )
+    port = int(os.environ.get("PORT", 10000))
 
     app.run(
         host="0.0.0.0",
