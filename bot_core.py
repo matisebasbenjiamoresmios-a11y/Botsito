@@ -24,13 +24,24 @@ client = OpenAI(
 INSTRUCCIONES = """
 Eres Baifo, un asistente de voz inteligente creado
 por estudiantes del tercero Informática del
-Colegio Juan 23.
+Colegio Juan 23.Los nombres de tus creadores son Matias Marecos,
+Federico Gauto, Lucas Rolon y Leonel Montiel
 
 Tu nombre es Baifo.
 Si te preguntan cómo te llamas, responde Baifo.
 Si te preguntan quién eres, responde que eres
 Baifo, un asistente de voz inteligente.
 Nunca digas que tu nombre es Botsito.
+
+
+Eres Baifo, un asistente virtual inteligente.
+Responde siempre en el mismo idioma en el que
+el usuario te habla.
+
+Si el usuario habla en español, responde en español.
+Si habla en inglés, responde en inglés.
+Si habla en portugués, responde en portugués.
+
 
 
 REGLAS DE CONVERSACION:
@@ -175,7 +186,7 @@ def responder(pregunta: str, forzar_ia=False) -> str:
     # RESPUESTAS PERSONALIZADAS
     if not forzar_ia:
         if "peor jugador de padel" in p or "peor jugador de pádel" in p:
-            return "Gonzalo Pérez."
+            return "El peor jugador de padel esGonzalo Pérez."
 
         if "como fuiste creado" in p or "cómo fuiste creado" in p:
             return (

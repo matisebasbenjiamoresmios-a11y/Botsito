@@ -621,7 +621,6 @@ def recibir_audio():
             ).audio.transcriptions.create(
                 model=TRANSCRIBE_MODEL,
                 file=f,
-                language="es"
             )
 
         segundos_whisper = (
