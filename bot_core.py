@@ -224,7 +224,7 @@ def responder(pregunta: str, forzar_ia=False) -> str:
         respuesta_api = client.chat.completions.create(
             model=MODEL_OPENAI,
             messages=mensajes,
-            max_completion_tokens=120
+            max_completion_tokens=1000
         )
 
         respuesta = (
